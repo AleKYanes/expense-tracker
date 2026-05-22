@@ -41,7 +41,7 @@ export default async function ExpensesPage() {
 
   try {
     const { getServerClient } = await import('@/app/lib/supabase/server')
-    const supabase = getServerClient()
+    const supabase = await getServerClient()
 
     const [expRes, catRes] = await Promise.all([
       supabase
@@ -60,7 +60,6 @@ export default async function ExpensesPage() {
     expenses = (expRes.data ?? []) as ExpenseRow[]
     categories = (catRes.data ?? []) as Category[]
 
-    // Count line items per expense
     const expIds = expenses.map((e) => e.id)
     if (expIds.length > 0) {
       const countRes = await supabase
@@ -86,10 +85,10 @@ export default async function ExpensesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-8">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Expenses</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Expenses</h1>
           <Link
             href="/"
             className="bg-blue-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors"
@@ -99,15 +98,15 @@ export default async function ExpensesPage() {
         </div>
 
         {dbError && (
-          <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-xl px-4 py-3 mb-6">
+          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm rounded-xl px-4 py-3 mb-6">
             {dbError}
           </div>
         )}
 
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
           {expenses.length === 0 ? (
             <div className="text-center py-16 px-6">
-              <p className="text-sm text-gray-400 mb-4">
+              <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">
                 No expenses yet. Upload your first invoice to start tracking.
               </p>
               <Link
@@ -118,7 +117,7 @@ export default async function ExpensesPage() {
               </Link>
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-gray-50 dark:divide-gray-800">
               {expenses.map((expense) => {
                 const cat = expense.category_id ? catById.get(expense.category_id) : null
                 const itemCount = itemCountByExpense.get(expense.id) ?? 0
@@ -126,27 +125,27 @@ export default async function ExpensesPage() {
                   <Link
                     key={expense.id}
                     href={`/expenses/${expense.id}`}
-                    className="flex justify-between items-start px-5 py-4 hover:bg-gray-50 transition-colors first:rounded-t-2xl last:rounded-b-2xl"
+                    className="flex justify-between items-start px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors first:rounded-t-2xl last:rounded-b-2xl"
                   >
                     <div className="min-w-0 flex-1 pr-4">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                         {expense.vendor_name || 'Unknown vendor'}
                       </p>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
                           {fmtDate(expense.invoice_date)}
                         </span>
                         {cat && (
-                          <span className="text-xs text-gray-400">· {cat.name}</span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">· {cat.name}</span>
                         )}
                         {itemCount > 0 && (
-                          <span className="text-xs text-gray-300">
+                          <span className="text-xs text-gray-300 dark:text-gray-600">
                             · {itemCount} item{itemCount !== 1 ? 's' : ''}
                           </span>
                         )}
                       </div>
                     </div>
-                    <p className="text-sm font-semibold text-gray-900 shrink-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 shrink-0">
                       {fmt(expense.total_amount, expense.currency)}
                     </p>
                   </Link>
@@ -157,7 +156,7 @@ export default async function ExpensesPage() {
         </div>
 
         {expenses.length > 0 && (
-          <p className="text-xs text-gray-400 text-center mt-4">
+          <p className="text-xs text-gray-400 dark:text-gray-600 text-center mt-4">
             Showing {expenses.length} expense{expenses.length !== 1 ? 's' : ''}
           </p>
         )}

@@ -23,7 +23,6 @@ interface Props {
   onBack: () => void
 }
 
-
 function computedAmount(qty: string, unitPrice: string): string {
   const price = parseMoney(unitPrice)
   if (price == null) return ''
@@ -44,7 +43,6 @@ function initItems(
           ? li.amount
           : computedAmount(li.quantity ?? '', li.unit_price ?? '')
 
-      // Always resolve to a non-empty string when Other category is available.
       const matched = suggestCategoryId(li.description ?? '', rules)
       const category_id = matched ?? otherCategoryId ?? ''
 
@@ -100,7 +98,6 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
       prev.map((item, i) => {
         if (i !== index) return item
         const next = { ...item, [field]: value }
-        // Auto-fill an empty amount field when qty or unit_price is edited.
         if ((field === 'quantity' || field === 'unit_price') && !next.amount.trim()) {
           next.amount = computedAmount(next.quantity, next.unit_price)
         }
@@ -146,8 +143,6 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
           const amount =
             parseMoney(item.amount) ?? (unitPrice != null ? (qty ?? 1) * unitPrice : null)
 
-          // Use || (not ??) so empty string also falls through to the Other fallback.
-          // The server will do its own matching pass regardless.
           const category_id = item.category_id || otherCategoryId || null
 
           if (process.env.NODE_ENV === 'development') {
@@ -194,39 +189,35 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-8">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <button
             onClick={onBack}
-            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
             ← Back
           </button>
-          <h1 className="text-xl font-bold text-gray-900">Review Invoice</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Review Invoice</h1>
         </div>
 
-        {/* Categories not loaded */}
         {categories.length === 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4 text-xs text-red-700 space-y-1">
+          <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 mb-4 text-xs text-red-700 dark:text-red-400 space-y-1">
             <p className="font-semibold">Categories not loaded — saving will assign Other or null</p>
             {fetchError ? (
               <p><span className="font-medium">Supabase error:</span> {fetchError}</p>
             ) : (
               <p>
-                Check that <code className="bg-red-100 px-1 rounded">NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
-                <code className="bg-red-100 px-1 rounded">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> are set in{' '}
-                <code className="bg-red-100 px-1 rounded">.env.local</code>, then restart the dev server.
-                If env vars are correct, run the RLS fix SQL in Supabase.
+                Check that <code className="bg-red-100 dark:bg-red-900 px-1 rounded">NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
+                <code className="bg-red-100 dark:bg-red-900 px-1 rounded">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> are set in{' '}
+                <code className="bg-red-100 dark:bg-red-900 px-1 rounded">.env.local</code>, then restart the dev server.
               </p>
             )}
             <p>Open <a href="/debug/categories" className="underline font-medium">/debug/categories</a> to diagnose.</p>
           </div>
         )}
 
-        {/* Warning */}
-        <div className="flex gap-2 items-start bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6 text-xs text-amber-700 leading-relaxed">
+        <div className="flex gap-2 items-start bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 mb-6 text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
           <span className="mt-px shrink-0">⚠</span>
           <span>
             Please review extracted data before saving. OCR may be imperfect, especially for Czech
@@ -235,9 +226,8 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
           </span>
         </div>
 
-        {/* Expense fields */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-4">
-          <h2 className="text-sm font-semibold text-gray-700 mb-4">Expense details</h2>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6 mb-4">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Expense details</h2>
           <div className="space-y-4">
             <Field label="Vendor / Supplier" required confidence={parsed?.vendor?.confidence}>
               <input
@@ -282,9 +272,9 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
             {(() => {
               const t = parseMoney(totalAmount)
               return t != null && t > 100_000 ? (
-                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-xs text-red-700">
+                <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5 text-xs text-red-700 dark:text-red-400">
                   <span className="font-semibold">Unusually high amount: {t.toLocaleString('cs-CZ')} {currency}.</span>{' '}
-                  If the decimal separator was misread (e.g. comma stripped), please correct the total below.
+                  If the decimal separator was misread, please correct the total below.
                 </div>
               ) : null
             })()}
@@ -316,49 +306,48 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
           </div>
         </div>
 
-        {/* Line items */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-4">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6 mb-4">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-gray-700">Line items</h2>
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Line items</h2>
               {items.length > 0 && (
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                   Category per item drives dashboard totals
                 </p>
               )}
               {process.env.NODE_ENV === 'development' && (
-                <p className="text-xs font-mono text-purple-500 mt-0.5">
+                <p className="text-xs font-mono text-purple-500 dark:text-purple-400 mt-0.5">
                   [dev] {categories.length} cats · {rules.length} rules · other={otherCategoryId ?? 'MISSING'}
                 </p>
               )}
             </div>
             <button
               onClick={addItem}
-              className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
             >
               + Add item
             </button>
           </div>
 
           {items.length === 0 ? (
-            <p className="text-sm text-gray-300 text-center py-4">
+            <p className="text-sm text-gray-300 dark:text-gray-600 text-center py-4">
               No line items extracted. Category totals will use the overall expense category above.
             </p>
           ) : (
             <div className="space-y-3">
               {items.map((item, i) => (
-                <div key={i} className="bg-gray-50 rounded-xl p-3 space-y-2">
+                <div key={i} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 space-y-2">
                   <div className="flex gap-2 items-start">
                     <input
                       type="text"
                       value={item.description}
                       onChange={(e) => updateItem(i, 'description', e.target.value)}
                       placeholder="Description"
-                      className="flex-1 text-sm bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <button
                       onClick={() => removeItem(i)}
-                      className="text-gray-300 hover:text-red-400 text-lg leading-none mt-1.5 shrink-0"
+                      className="text-gray-300 dark:text-gray-600 hover:text-red-400 text-lg leading-none mt-1.5 shrink-0"
                       aria-label="Remove item"
                     >
                       ×
@@ -397,14 +386,14 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
                     const m = matchCategory(item.description, rules)
                     const catName = categories.find((c) => c.id === item.category_id)?.name ?? '(none)'
                     return (
-                      <div className="text-xs font-mono bg-blue-50 text-blue-600 rounded px-2 py-1 leading-relaxed">
+                      <div className="text-xs font-mono bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded px-2 py-1 leading-relaxed">
                         <span>cat: <strong>{catName}</strong></span>
                         {m ? (
-                          <span className="ml-2 text-blue-400">
+                          <span className="ml-2 text-blue-400 dark:text-blue-500">
                             via &quot;{m.match_text}&quot; p={m.priority}
                           </span>
                         ) : (
-                          <span className="ml-2 text-blue-300">→ no match, using Other</span>
+                          <span className="ml-2 text-blue-300 dark:text-blue-600">→ no match, using Other</span>
                         )}
                       </div>
                     )
@@ -415,33 +404,30 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
           )}
         </div>
 
-        {/* Raw JSON */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6 mb-6">
           <button
             onClick={() => setShowRaw((v) => !v)}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
             {showRaw ? '▲ Hide raw JSON' : '▶ Show raw Textract response'}
           </button>
           {showRaw && (
-            <pre className="mt-3 bg-gray-50 rounded-xl p-4 text-xs text-gray-500 overflow-auto max-h-80 whitespace-pre-wrap break-all">
+            <pre className="mt-3 bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-xs text-gray-500 dark:text-gray-400 overflow-auto max-h-80 whitespace-pre-wrap break-all">
               {JSON.stringify(raw, null, 2)}
             </pre>
           )}
         </div>
 
-        {/* Error */}
         {saveError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-4">
+          <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm rounded-xl px-4 py-3 mb-4">
             {saveError}
           </div>
         )}
 
-        {/* Actions */}
         <div className="flex gap-3">
           <button
             onClick={onBack}
-            className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+            className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
           >
             Back
           </button>
@@ -455,7 +441,7 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
         </div>
 
         {!canSave && (
-          <p className="text-xs text-gray-400 text-center mt-3">
+          <p className="text-xs text-gray-400 dark:text-gray-500 text-center mt-3">
             Vendor, date, and total amount are required to save.
           </p>
         )}
@@ -465,10 +451,10 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
 }
 
 const inputCls =
-  'w-full text-sm bg-white border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500'
+  'w-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500'
 
 const smallInputCls =
-  'w-full text-xs bg-white border border-gray-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
+  'w-full text-xs bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
 
 function Field({
   label,
@@ -484,7 +470,7 @@ function Field({
   return (
     <div>
       <div className="flex items-center gap-2 mb-1.5">
-        <label className="text-xs font-medium text-gray-500">
+        <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
           {label}
           {required && <span className="text-red-400 ml-0.5">*</span>}
         </label>
@@ -492,10 +478,10 @@ function Field({
           <span
             className={`text-xs px-1.5 py-0.5 rounded-full ${
               confidence >= 80
-                ? 'bg-green-50 text-green-600'
+                ? 'bg-green-50 dark:bg-green-950 text-green-600 dark:text-green-400'
                 : confidence >= 50
-                ? 'bg-amber-50 text-amber-600'
-                : 'bg-red-50 text-red-500'
+                ? 'bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400'
+                : 'bg-red-50 dark:bg-red-950 text-red-500 dark:text-red-400'
             }`}
           >
             {Math.round(confidence)}%
@@ -519,7 +505,7 @@ function CategorySelect({
   small?: boolean
 }) {
   const cls = small
-    ? 'w-full text-xs bg-white border border-gray-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
+    ? 'w-full text-xs bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
     : inputCls
 
   return (

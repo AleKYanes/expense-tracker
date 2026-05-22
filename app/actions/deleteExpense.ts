@@ -6,7 +6,7 @@ import { getServerClient } from '@/app/lib/supabase/server'
 export async function deleteExpense(id: string): Promise<{ error: string } | void> {
   let supabase
   try {
-    supabase = getServerClient()
+    supabase = await getServerClient()
   } catch {
     return { error: 'Database is not configured.' }
   }

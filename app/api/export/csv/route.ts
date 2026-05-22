@@ -65,7 +65,7 @@ function getPeriodRange(period: string): { from: string | null; to: string | nul
 export async function GET(request: NextRequest) {
   let supabase
   try {
-    supabase = getServerClient()
+    supabase = await getServerClient()
   } catch {
     return new Response('Supabase is not configured.', { status: 500 })
   }
@@ -73,13 +73,11 @@ export async function GET(request: NextRequest) {
   const period = request.nextUrl.searchParams.get('period') ?? 'this_month'
   const range = getPeriodRange(period)
 
-  // Fetch categories
   const catRes = await supabase.from('categories').select('id, name')
   const catById = new Map<string, string>(
     ((catRes.data ?? []) as Category[]).map((c) => [c.id, c.name])
   )
 
-  // Fetch expenses
   let expQuery = supabase
     .from('expenses')
     .select(
@@ -98,7 +96,6 @@ export async function GET(request: NextRequest) {
     return csvResponse(csv, period)
   }
 
-  // Fetch line items
   const expIds = expenses.map((e) => e.id)
   const itemsRes = await supabase
     .from('expense_items')
@@ -113,7 +110,6 @@ export async function GET(request: NextRequest) {
     itemsByExpense.set(item.expense_id, list)
   }
 
-  // Build CSV rows
   const rows: string[] = [CSV_HEADERS.join(',')]
 
   for (const expense of expenses) {
@@ -162,7 +158,6 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // UTF-8 BOM ensures Czech characters open correctly in Excel and Google Sheets
   const csv = '﻿' + rows.join('\n')
   return csvResponse(csv, period)
 }

@@ -10,21 +10,19 @@ import type { ParsedField, ParsedLineItem, ParsedResult } from '@/app/lib/types'
 import { applyCzechFallback } from '@/app/lib/czechParser'
 
 const ALLOWED_TYPES = ['application/pdf', 'image/png', 'image/jpeg']
-const MAX_BYTES = 10 * 1024 * 1024 // 10 MB hard ceiling before even calling AWS
+const MAX_BYTES = 10 * 1024 * 1024
 
-// Human-readable messages for known Textract error codes.
-// These are shown directly in the UI, so keep them user-friendly.
 const AWS_ERROR_FRIENDLY: Record<string, string> = {
   AccessDeniedException:
     'AWS permission denied. Make sure your IAM user has the textract:AnalyzeExpense permission.',
   BadDocumentException:
     'The document could not be read by Textract. Check that the file is a valid, non-corrupted PDF or image.',
   DocumentTooLargeException:
-    'The file is too large for Textract to process inline. Try a smaller file (Textract limit: 5 MB for images, ~3000 pages for PDFs).',
+    'The file is too large for Textract to process inline. Try a smaller file.',
   InvalidParameterException:
     'Textract rejected the file. It may be corrupted, password-protected, or an unsupported variant of PDF/image.',
   UnsupportedDocumentException:
-    'Textract does not support this document format. Use a standard PDF, PNG, or JPEG.',
+    'This PDF was rejected by Textract. It may be multi-page or generated in a way Textract cannot read directly.',
   ProvisionedThroughputExceededException:
     'AWS Textract is throttling requests right now. Wait a few seconds and try again.',
   ThrottlingException:
@@ -53,6 +51,29 @@ function buildClient() {
   return new TextractClient({ region, credentials: { accessKeyId, secretAccessKey } })
 }
 
+async function extractPdfText(bytes: Uint8Array): Promise<string | null> {
+  try {
+    const { PDFParse } = await import('pdf-parse')
+    const parser = new PDFParse({ data: bytes })
+    const result = await parser.getText()
+    return result.text && result.text.trim().length > 20 ? result.text : null
+  } catch (err) {
+    console.warn('[pdf-parse] extraction failed:', err instanceof Error ? err.message : String(err))
+    return null
+  }
+}
+
+async function buildFallbackResponse(pdfText: string, fileName: string, warningPrefix: string) {
+  const { parseRohlíkText } = await import('@/app/lib/rohlíkParser')
+  const parsed = parseRohlíkText(pdfText, fileName)
+  return Response.json({
+    raw: { _source: 'pdf-text-fallback', textSample: pdfText.slice(0, 1500) },
+    parsed,
+    parseWarning: warningPrefix +
+      ' The fallback text parser extracted data from the PDF. Please verify all fields carefully before saving.',
+  })
+}
+
 export async function POST(request: NextRequest) {
   const client = buildClient()
   if (!client) {
@@ -66,54 +87,37 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // ── Parse multipart body ────────────────────────────────────────────────
   let formData: FormData
   try {
     formData = await request.formData()
   } catch {
-    return Response.json({ error: 'Could not parse the request. Please try again.', code: 'BadRequest' }, { status: 400 })
+    return Response.json({ error: 'Could not parse the request.', code: 'BadRequest' }, { status: 400 })
   }
 
   const file = formData.get('file')
 
-  // ── File validation ─────────────────────────────────────────────────────
   if (!file || !(file instanceof File)) {
     return Response.json({ error: 'No file was provided.', code: 'MissingFile' }, { status: 400 })
   }
-
   if (!ALLOWED_TYPES.includes(file.type)) {
     return Response.json(
-      {
-        error: `"${file.type || 'unknown'}" is not supported. Please upload a PDF, PNG, or JPEG.`,
-        code: 'UnsupportedType',
-      },
+      { error: `"${file.type || 'unknown'}" is not supported. Upload a PDF, PNG, or JPEG.`, code: 'UnsupportedType' },
       { status: 400 }
     )
   }
-
   if (file.size === 0) {
     return Response.json({ error: 'The selected file is empty.', code: 'EmptyFile' }, { status: 400 })
   }
-
   if (file.size > MAX_BYTES) {
     const mb = (file.size / (1024 * 1024)).toFixed(1)
     return Response.json(
-      {
-        error: `File is too large (${mb} MB). Maximum allowed size is 10 MB.`,
-        code: 'FileTooLarge',
-      },
+      { error: `File is too large (${mb} MB). Maximum is 10 MB.`, code: 'FileTooLarge' },
       { status: 400 }
     )
   }
 
-  // Safe context for server-side logs — no credentials, no file content
-  const logCtx = {
-    fileType: file.type,
-    fileSizeBytes: file.size,
-    fileSizeMB: (file.size / (1024 * 1024)).toFixed(2),
-  }
+  const logCtx = { fileName: file.name, fileType: file.type, fileSizeMB: (file.size / (1024 * 1024)).toFixed(2) }
 
-  // ── Read bytes ──────────────────────────────────────────────────────────
   let bytes: Uint8Array
   try {
     bytes = new Uint8Array(await file.arrayBuffer())
@@ -121,7 +125,30 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Could not read the file.', code: 'ReadError' }, { status: 400 })
   }
 
-  // ── Call AWS Textract ───────────────────────────────────────────────────
+  // ── PDF pre-check: try text extraction before calling Textract ────────────
+  // For PDFs that are text-based (like Rohlík delivery notes), PDF text parsing
+  // is more reliable than Textract. We try it first if we detect a supported format.
+  if (file.type === 'application/pdf') {
+    console.log('[route] PDF upload — attempting text pre-check:', file.name)
+    const pdfText = await extractPdfText(bytes)
+
+    if (pdfText) {
+      const { isRohlíkDeliveryNote } = await import('@/app/lib/rohlíkParser')
+      if (isRohlíkDeliveryNote(pdfText)) {
+        console.log('[route] Rohlík delivery note detected — using PDF text parser directly:', file.name)
+        return await buildFallbackResponse(
+          pdfText,
+          file.name,
+          'Parsed using PDF text fallback (Rohlík delivery note detected).'
+        )
+      }
+      console.log('[route] PDF text extracted but not a known delivery note format — proceeding with Textract')
+    } else {
+      console.log('[route] PDF has no extractable text — proceeding with Textract')
+    }
+  }
+
+  // ── Call AWS Textract ─────────────────────────────────────────────────────
   let raw: AnalyzeExpenseCommandOutput
   try {
     raw = await client.send(new AnalyzeExpenseCommand({ Document: { Bytes: bytes } }))
@@ -131,18 +158,39 @@ export async function POST(request: NextRequest) {
         ...logCtx,
         errorName: err.name,
         errorMessage: err.message,
-        httpStatus: err.$metadata?.httpStatusCode,
-        // requestId is safe to log — it is the AWS request trace id, not a secret
         requestId: err.$metadata?.requestId,
       })
+
+      // ── Fallback: try PDF text when Textract rejects the document ────────
+      if (err.name === 'UnsupportedDocumentException' && file.type === 'application/pdf') {
+        console.log('[Textract] UnsupportedDocumentException — attempting PDF text fallback:', file.name)
+        const pdfText = await extractPdfText(bytes)
+
+        if (pdfText) {
+          console.log('[Textract] fallback text extracted, length:', pdfText.length)
+          return await buildFallbackResponse(
+            pdfText,
+            file.name,
+            'Parsed using PDF text fallback because Textract could not read this PDF.'
+          )
+        }
+
+        return Response.json(
+          {
+            error:
+              'This PDF was rejected by Textract and has no embedded text — it may be a scanned image. ' +
+              'Try converting each page to PNG/JPEG and uploading those instead.',
+            details: err.message,
+            code: err.name,
+          },
+          { status: 502 }
+        )
+      }
+
       const friendly = AWS_ERROR_FRIENDLY[err.name] ?? 'Could not scan invoice. Please try again.'
-      return Response.json(
-        { error: friendly, details: err.message, code: err.name },
-        { status: 502 }
-      )
+      return Response.json({ error: friendly, details: err.message, code: err.name }, { status: 502 })
     }
 
-    // Non-AWS error (network failure, timeout, etc.)
     const message = err instanceof Error ? err.message : String(err)
     console.error('[Textract] unexpected error', { ...logCtx, errorMessage: message })
     return Response.json(
@@ -151,9 +199,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // ── Parse the response ──────────────────────────────────────────────────
-  // Parse failures must not discard a successful Textract response.
-  // Return raw + null parsed + a warning so the UI can still open the review form.
+  // ── Parse Textract response ───────────────────────────────────────────────
   let parsed: ParsedResult | null = null
   let parseWarning: string | undefined
   try {
@@ -166,14 +212,10 @@ export async function POST(request: NextRequest) {
       'You can review the raw response below and fill in the fields manually.'
   }
 
-  return Response.json({
-    raw,
-    parsed,
-    ...(parseWarning ? { parseWarning } : {}),
-  })
+  return Response.json({ raw, parsed, ...(parseWarning ? { parseWarning } : {}) })
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function toField(f: ExpenseField): ParsedField {
   return {
@@ -191,7 +233,6 @@ function parseExpenseResponse(raw: AnalyzeExpenseCommandOutput): ParsedResult | 
   const summaryFields: ExpenseField[] = doc.SummaryFields ?? []
   const lineItemGroups: LineItemGroup[] = doc.LineItemGroups ?? []
 
-  // First pass: standard field types
   const found: Record<string, ParsedField> = {}
   for (const f of summaryFields) {
     const t = f.Type?.Text
@@ -199,7 +240,6 @@ function parseExpenseResponse(raw: AnalyzeExpenseCommandOutput): ParsedResult | 
     if (!found[t]) found[t] = toField(f)
   }
 
-  // Second pass: Czech fallback for OTHER-typed / unrecognised fields
   const enhanced = applyCzechFallback(summaryFields, found)
 
   const lineItems: ParsedLineItem[] = lineItemGroups.flatMap((group) =>

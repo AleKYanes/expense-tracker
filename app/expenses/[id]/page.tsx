@@ -62,7 +62,7 @@ export default async function ExpenseDetail({
 
   try {
     const { getServerClient } = await import('@/app/lib/supabase/server')
-    const supabase = getServerClient()
+    const supabase = await getServerClient()
 
     const [expRes, catRes] = await Promise.all([
       supabase
@@ -94,12 +94,12 @@ export default async function ExpenseDetail({
 
   if (dbError || !expense) {
     return (
-      <div className="min-h-screen bg-gray-50 px-4 py-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-8">
         <div className="max-w-2xl mx-auto">
-          <Link href="/expenses" className="text-sm text-gray-400 hover:text-gray-600">
+          <Link href="/expenses" className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
             ← Back to expenses
           </Link>
-          <div className="mt-6 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+          <div className="mt-6 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm rounded-xl px-4 py-3">
             {dbError ?? 'Expense not found.'}
           </div>
         </div>
@@ -110,26 +110,24 @@ export default async function ExpenseDetail({
   const expenseCat = expense.category_id ? catById.get(expense.category_id) : null
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-8">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <Link href="/expenses" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
+          <Link href="/expenses" className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             ← Expenses
           </Link>
           <DeleteButton id={expense.id} />
         </div>
 
-        {/* Main card */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-4">
-          <h1 className="text-xl font-bold text-gray-900 mb-1">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6 mb-4">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-1">
             {expense.vendor_name || 'Unknown vendor'}
           </h1>
           {expense.invoice_number && (
-            <p className="text-sm text-gray-400 mb-4">Invoice #{expense.invoice_number}</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">Invoice #{expense.invoice_number}</p>
           )}
 
-          <dl className="divide-y divide-gray-50">
+          <dl className="divide-y divide-gray-50 dark:divide-gray-800">
             <Row label="Invoice date" value={fmtDate(expense.invoice_date)} />
             <Row
               label="Total amount"
@@ -155,10 +153,9 @@ export default async function ExpenseDetail({
           </dl>
         </div>
 
-        {/* Line items */}
         {items.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6 mb-4">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
               Line items ({items.length})
             </h2>
             <div className="space-y-2">
@@ -167,22 +164,22 @@ export default async function ExpenseDetail({
                 return (
                   <div
                     key={item.id}
-                    className="bg-gray-50 rounded-xl px-4 py-3"
+                    className="bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3"
                   >
                     <div className="flex justify-between items-start gap-3">
-                      <p className="text-sm text-gray-800 flex-1">
+                      <p className="text-sm text-gray-800 dark:text-gray-200 flex-1">
                         {item.description || '—'}
                       </p>
-                      <p className="text-sm font-medium text-gray-900 shrink-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 shrink-0">
                         {fmt(item.amount, expense.currency)}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
                       {item.quantity != null && (
-                        <span className="text-xs text-gray-400">Qty: {item.quantity}</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">Qty: {item.quantity}</span>
                       )}
                       {item.unit_price != null && (
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
                           Unit: {fmt(item.unit_price, expense.currency)}
                         </span>
                       )}
@@ -202,7 +199,6 @@ export default async function ExpenseDetail({
           </div>
         )}
 
-        {/* Raw JSON */}
         <RawJsonCollapsible raw={expense.raw_extraction_json} />
       </div>
     </div>
@@ -220,8 +216,8 @@ function Row({
 }) {
   return (
     <div className="flex justify-between items-baseline py-2.5">
-      <dt className="text-sm text-gray-500">{label}</dt>
-      <dd className={`text-sm text-right ${bold ? 'font-bold text-gray-900' : 'text-gray-800'}`}>
+      <dt className="text-sm text-gray-500 dark:text-gray-400">{label}</dt>
+      <dd className={`text-sm text-right ${bold ? 'font-bold text-gray-900 dark:text-gray-100' : 'text-gray-800 dark:text-gray-200'}`}>
         {value}
       </dd>
     </div>
@@ -229,13 +225,12 @@ function Row({
 }
 
 function RawJsonCollapsible({ raw }: { raw: unknown }) {
-  // Server component — render as a details/summary element (no JS needed)
   return (
-    <details className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-      <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600 select-none">
+    <details className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6">
+      <summary className="text-xs text-gray-400 dark:text-gray-500 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 select-none">
         Show raw Textract response
       </summary>
-      <pre className="mt-3 bg-gray-50 rounded-xl p-4 text-xs text-gray-500 overflow-auto max-h-80 whitespace-pre-wrap break-all">
+      <pre className="mt-3 bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-xs text-gray-500 dark:text-gray-400 overflow-auto max-h-80 whitespace-pre-wrap break-all">
         {JSON.stringify(raw, null, 2)}
       </pre>
     </details>

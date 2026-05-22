@@ -8,7 +8,6 @@ async function fetchCategoriesAndRules(): Promise<{
   rules: CategoryRule[]
   fetchError?: string
 }> {
-  // Always log which env vars are present so failures are visible in server logs.
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const keyAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const keyPub = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
@@ -27,14 +26,13 @@ async function fetchCategoriesAndRules(): Promise<{
 
   try {
     const { getServerClient } = await import('./lib/supabase/server')
-    const supabase = getServerClient()
+    const supabase = await getServerClient()
 
     const [catRes, ruleRes] = await Promise.all([
       supabase.from('categories').select('id, name, slug, color').order('name'),
       supabase.from('category_rules').select('category_id, match_text, priority'),
     ])
 
-    // Supabase errors are returned in .error, never thrown — check explicitly.
     if (catRes.error) {
       console.error('[fetchCategories] categories query failed:', catRes.error.message, catRes.error.code)
       return { categories: [], rules: [], fetchError: `categories: ${catRes.error.message}` }

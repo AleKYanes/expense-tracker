@@ -61,20 +61,20 @@ export default function InvoiceUploader({ onScanComplete }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex justify-center px-4 py-12">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex justify-center px-4 py-12">
       <div className="w-full max-w-xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Expense Tracker</h1>
-        <p className="text-sm text-gray-500 mb-8">Upload an invoice to extract and save expense data.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">Expense Tracker</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Upload an invoice to extract and save expense data.</p>
 
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-4">
-          <p className="text-sm font-medium text-gray-700 mb-3">Upload invoice</p>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6 mb-4">
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Upload invoice</p>
 
           <div
             role="button"
             tabIndex={0}
             onClick={() => inputRef.current?.click()}
             onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
-            className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400 transition-colors"
+            className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400 dark:hover:border-blue-600 transition-colors"
           >
             <input
               ref={inputRef}
@@ -84,11 +84,11 @@ export default function InvoiceUploader({ onScanComplete }: Props) {
               onChange={handleFileChange}
             />
             {file ? (
-              <p className="text-sm font-medium text-gray-800 truncate">{file.name}</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{file.name}</p>
             ) : (
               <>
-                <p className="text-sm text-gray-400">Click to choose a file</p>
-                <p className="text-xs text-gray-300 mt-1">PDF · PNG · JPG · JPEG · max 10 MB</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500">Click to choose a file</p>
+                <p className="text-xs text-gray-300 dark:text-gray-600 mt-1">PDF · PNG · JPG · JPEG · max 10 MB</p>
               </>
             )}
           </div>
@@ -103,10 +103,10 @@ export default function InvoiceUploader({ onScanComplete }: Props) {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-            <p className="text-sm text-red-700">{error.message}</p>
+          <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+            <p className="text-sm text-red-700 dark:text-red-400">{error.message}</p>
             {error.details && (
-              <p className="text-xs text-red-500 mt-1 opacity-80">{error.details}</p>
+              <p className="text-xs text-red-500 dark:text-red-500 mt-1 opacity-80">{error.details}</p>
             )}
           </div>
         )}

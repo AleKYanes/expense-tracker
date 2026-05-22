@@ -13,7 +13,6 @@ export default function DeleteButton({ id }: { id: string }) {
       if (result && 'error' in result) {
         alert('Failed to delete: ' + result.error)
       }
-      // On success, deleteExpense redirects server-side to /expenses
     })
   }
 
@@ -21,7 +20,7 @@ export default function DeleteButton({ id }: { id: string }) {
     <button
       onClick={handleDelete}
       disabled={isPending}
-      className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      className="px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
     >
       {isPending ? 'Deleting…' : 'Delete'}
     </button>

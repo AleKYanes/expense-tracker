@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(Get-ChildItem \"C:\\\\Users\\\\aleja\\\\projects\\\\expense-tracker\\\\node_modules\\\\next\\\\dist\" -Directory)",
-      "Bash(Select-Object -First 30)"
+      "Bash(Select-Object -First 30)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\aleja\\\\projects\\\\expense-tracker\\\\node_modules\\\\next\\\\dist\\\\docs\\\\*middleware*\")",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(del \"C:\\\\Users\\\\aleja\\\\projects\\\\expense-tracker\\\\middleware.ts\")"
     ]
   }
 }

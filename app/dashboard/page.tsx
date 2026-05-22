@@ -64,7 +64,7 @@ export default async function Dashboard() {
 
   try {
     const { getServerClient } = await import('@/app/lib/supabase/server')
-    const supabase = getServerClient()
+    const supabase = await getServerClient()
 
     const now = new Date()
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -93,7 +93,6 @@ export default async function Dashboard() {
     monthExpenses = (monthRes.data ?? []) as Expense[]
     recentExpenses = (recentRes.data ?? []) as Expense[]
 
-    // Fetch line items for this month's expenses
     const monthExpenseIds = monthExpenses.map((e) => e.id)
     if (monthExpenseIds.length > 0) {
       const itemsRes = await supabase
@@ -111,12 +110,9 @@ export default async function Dashboard() {
         : 'Could not load expenses. Check your Supabase setup.'
   }
 
-  // Build a lookup of category by id
   const catById = new Map(allCategories.map((c) => [c.id, c]))
   const otherCategory = allCategories.find((c) => c.slug === 'other')
 
-  // ── Category totals ──────────────────────────────────────────────────────
-  // Group items by expense id
   const itemsByExpense = new Map<string, ExpenseItem[]>()
   for (const item of monthItems) {
     const list = itemsByExpense.get(item.expense_id) ?? []
@@ -124,7 +120,6 @@ export default async function Dashboard() {
     itemsByExpense.set(item.expense_id, list)
   }
 
-  // Resolve a category id: use it if known, fall back to Other, then null (Uncategorized)
   function resolveCategory(catId: string | null): string | null {
     if (catId && catById.has(catId)) return catId
     return otherCategory?.id ?? null
@@ -153,7 +148,6 @@ export default async function Dashboard() {
     const items = itemsByExpense.get(expense.id) ?? []
 
     if (items.length === 0) {
-      // No line items — use expense-level category (with Other fallback)
       addToCategory(resolveCategory(expense.category_id), expense.total_amount ?? 0)
       continue
     }
@@ -161,16 +155,12 @@ export default async function Dashboard() {
     const itemsWithAmount = items.filter((i) => i.amount != null && i.amount > 0)
 
     if (itemsWithAmount.length > 0) {
-      // Items have explicit amounts — sum by item category
       for (const item of itemsWithAmount) {
         addToCategory(resolveCategory(item.category_id), item.amount!)
       }
     } else {
-      // Items exist but amounts are all null (Textract often omits per-item amounts).
-      // Distribute expense.total_amount equally across items, using each item's category.
       const share = (expense.total_amount ?? 0) / items.length
       for (const item of items) {
-        // Per-item category → expense category → Other → Uncategorized
         const catId =
           (item.category_id && catById.has(item.category_id) ? item.category_id : null) ??
           resolveCategory(expense.category_id)
@@ -181,7 +171,6 @@ export default async function Dashboard() {
 
   const categoryStats = [...catTotals.values()].sort((a, b) => b.total - a.total)
 
-  // ── Vendor totals ────────────────────────────────────────────────────────
   const vendorMap = new Map<string, VendorStat>()
   for (const expense of monthExpenses) {
     const name = expense.vendor_name || 'Unknown'
@@ -205,13 +194,12 @@ export default async function Dashboard() {
   }).format(new Date())
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-8">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-sm text-gray-400 mt-0.5">{monthLabel}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">{monthLabel}</p>
           </div>
           <Link
             href="/"
@@ -222,30 +210,28 @@ export default async function Dashboard() {
         </div>
 
         {dbError && (
-          <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-xl px-4 py-3 mb-6">
+          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm rounded-xl px-4 py-3 mb-6">
             {dbError}
           </div>
         )}
 
-        {/* Stats cards */}
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-            <p className="text-xs text-gray-400 mb-1">Spent this month</p>
-            <p className="text-2xl font-bold text-gray-900">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-5">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Spent this month</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {monthCount === 0 ? '—' : fmt(monthTotal, primaryCurrency)}
             </p>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-            <p className="text-xs text-gray-400 mb-1">Invoices this month</p>
-            <p className="text-2xl font-bold text-gray-900">{monthCount}</p>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-5">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Invoices this month</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{monthCount}</p>
           </div>
         </div>
 
-        {/* Category breakdown */}
         {categoryStats.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-1">By category</h2>
-            <p className="text-xs text-gray-400 mb-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6 mb-4">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">By category</h2>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
               Based on line item categories where available
             </p>
             <div className="space-y-3">
@@ -254,15 +240,15 @@ export default async function Dashboard() {
                 return (
                   <div key={i}>
                     <div className="flex justify-between items-baseline mb-1">
-                      <span className="text-sm text-gray-700">{cat.name}</span>
-                      <span className="text-sm font-medium text-gray-900">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">{cat.name}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
                         {fmt(cat.total, primaryCurrency)}
-                        <span className="ml-1.5 text-xs font-normal text-gray-400">
+                        <span className="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">
                           {pct.toFixed(0)}%
                         </span>
                       </span>
                     </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full"
                         style={{
@@ -278,20 +264,19 @@ export default async function Dashboard() {
           </div>
         )}
 
-        {/* Top vendors */}
         {topVendors.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4">Top vendors</h2>
-            <div className="divide-y divide-gray-50">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6 mb-4">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Top vendors</h2>
+            <div className="divide-y divide-gray-50 dark:divide-gray-800">
               {topVendors.map((v) => (
                 <div key={v.name} className="flex justify-between items-center py-2.5">
                   <div>
-                    <p className="text-sm text-gray-800">{v.name}</p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-sm text-gray-800 dark:text-gray-200">{v.name}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
                       {v.count} invoice{v.count !== 1 ? 's' : ''}
                     </p>
                   </div>
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                     {fmt(v.total, primaryCurrency)}
                   </p>
                 </div>
@@ -300,18 +285,17 @@ export default async function Dashboard() {
           </div>
         )}
 
-        {/* Recent expenses */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-sm font-semibold text-gray-700">Recent expenses</h2>
-            <Link href="/expenses" className="text-xs text-blue-600 hover:underline">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Recent expenses</h2>
+            <Link href="/expenses" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
               View all
             </Link>
           </div>
 
           {recentExpenses.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-sm text-gray-400 mb-3">No expenses yet.</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mb-3">No expenses yet.</p>
               <Link
                 href="/"
                 className="text-sm text-white bg-blue-600 px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors"
@@ -320,27 +304,27 @@ export default async function Dashboard() {
               </Link>
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-gray-50 dark:divide-gray-800">
               {recentExpenses.map((expense) => {
                 const cat = expense.category_id ? catById.get(expense.category_id) : null
                 return (
                   <Link
                     key={expense.id}
                     href={`/expenses/${expense.id}`}
-                    className="flex justify-between items-start py-3 hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
+                    className="flex justify-between items-start py-3 hover:bg-gray-50 dark:hover:bg-gray-800 -mx-2 px-2 rounded-lg transition-colors"
                   >
                     <div className="min-w-0 flex-1 pr-4">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                         {expense.vendor_name || 'Unknown vendor'}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <p className="text-xs text-gray-400">{fmtDate(expense.invoice_date)}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">{fmtDate(expense.invoice_date)}</p>
                         {cat && (
-                          <span className="text-xs text-gray-400">· {cat.name}</span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">· {cat.name}</span>
                         )}
                       </div>
                     </div>
-                    <p className="text-sm font-semibold text-gray-900 shrink-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 shrink-0">
                       {fmt(expense.total_amount, expense.currency)}
                     </p>
                   </Link>

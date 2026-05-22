@@ -44,7 +44,7 @@ function getPeriodRange(period: string): { from: string | null; to: string | nul
 export async function GET(request: NextRequest) {
   let supabase
   try {
-    supabase = getServerClient()
+    supabase = await getServerClient()
   } catch {
     return Response.json({ error: 'Supabase is not configured.' }, { status: 500 })
   }
