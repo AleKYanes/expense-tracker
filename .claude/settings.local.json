@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\aleja\\\\projects\\\\expense-tracker\\\\node_modules\\\\next\\\\dist\" -Directory)",
+      "Bash(Select-Object -First 30)"
+    ]
+  }
+}
