@@ -3,7 +3,7 @@
 import { useState, useTransition, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { saveExpense } from '@/app/actions/saveExpense'
-import { suggestCategoryId, suggestOverallCategory, matchCategory } from '@/app/lib/categoryMatcher'
+import { suggestCategoryIdFromTexts, suggestOverallCategory, matchCategoryFromTexts } from '@/app/lib/categoryMatcher'
 import { parseDateString } from '@/app/lib/czechParser'
 import { parseMoney } from '@/app/lib/parseMoney'
 import type { Category, CategoryRule, ItemDraft, ParsedResult } from '@/app/lib/types'
@@ -43,7 +43,10 @@ function initItems(
           ? li.amount
           : computedAmount(li.quantity ?? '', li.unit_price ?? '')
 
-      const matched = suggestCategoryId(li.description ?? '', rules)
+      const matched = suggestCategoryIdFromTexts(
+        [li.description, li.translated_description],
+        rules
+      )
       const category_id = matched ?? otherCategoryId ?? ''
 
       return {
@@ -53,6 +56,7 @@ function initItems(
         amount,
         tax_amount: li.tax_amount ?? '',
         category_id,
+        translated_description: li.translated_description ?? undefined,
       }
     })
 }
@@ -157,6 +161,7 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
 
           return {
             description: item.description.trim(),
+            translated_description: item.translated_description ?? null,
             quantity: qty ?? (unitPrice != null ? 1 : null),
             unit_price: unitPrice,
             amount,
@@ -214,6 +219,14 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
               </p>
             )}
             <p>Open <a href="/debug/categories" className="underline font-medium">/debug/categories</a> to diagnose.</p>
+          </div>
+        )}
+
+        {/* Warn when extraction produced nothing useful — fields will be empty */}
+        {!totalAmount.trim() && items.length === 0 && (
+          <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 mb-4 text-xs text-red-700 dark:text-red-400 space-y-1">
+            <p className="font-semibold">No data could be extracted from this document.</p>
+            <p>All fields are empty. You can fill them in manually, or go back and try a different file (standard invoice PDF or image).</p>
           </div>
         )}
 
@@ -353,6 +366,12 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
                       ×
                     </button>
                   </div>
+                  {item.translated_description && (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 px-1">
+                      <span className="text-gray-300 dark:text-gray-600">EN: </span>
+                      {item.translated_description}
+                    </p>
+                  )}
                   <div className="grid grid-cols-3 gap-2">
                     <input
                       type="text"
@@ -383,7 +402,7 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
                     small
                   />
                   {process.env.NODE_ENV === 'development' && (() => {
-                    const m = matchCategory(item.description, rules)
+                    const m = matchCategoryFromTexts([item.description, item.translated_description], rules)
                     const catName = categories.find((c) => c.id === item.category_id)?.name ?? '(none)'
                     return (
                       <div className="text-xs font-mono bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded px-2 py-1 leading-relaxed">

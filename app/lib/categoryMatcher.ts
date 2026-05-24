@@ -15,12 +15,8 @@ export type MatchResult = {
 }
 
 /**
- * Returns the best-matching rule for the given text using a two-key score:
- *   1. Priority (explicit DB column, default 100)  — higher wins
- *   2. Match-text length                           — longer wins on ties
- *
- * This avoids the "first row from DB wins" problem and makes specific rules
- * (e.g. "kuřecí prsní") beat general ones (e.g. "protein").
+ * Returns the best-matching rule for a single text string.
+ * Scoring: priority (higher wins), then match_text length on ties.
  */
 export function matchCategory(text: string, rules: CategoryRule[]): MatchResult | null {
   if (!text || !rules.length) return null
@@ -35,7 +31,6 @@ export function matchCategory(text: string, rules: CategoryRule[]): MatchResult 
 
     const priority = rule.priority ?? 100
     const len = ruleNorm.length
-
     const isBetter =
       !best ||
       priority > best.priority ||
@@ -50,8 +45,45 @@ export function matchCategory(text: string, rules: CategoryRule[]): MatchResult 
   return best
 }
 
+/**
+ * Like matchCategory, but tries multiple text strings (e.g. original + translated)
+ * and returns the single best match across all of them.
+ */
+export function matchCategoryFromTexts(
+  texts: (string | null | undefined)[],
+  rules: CategoryRule[]
+): MatchResult | null {
+  let best: MatchResult | null = null
+
+  for (const text of texts) {
+    if (!text) continue
+    const m = matchCategory(text, rules)
+    if (!m) continue
+    if (
+      !best ||
+      m.priority > best.priority ||
+      (m.priority === best.priority && m.match_text.length > (best.match_text.length))
+    ) {
+      best = m
+    }
+  }
+
+  return best
+}
+
 export function suggestCategoryId(text: string, rules: CategoryRule[]): string | null {
   return matchCategory(text, rules)?.category_id ?? null
+}
+
+/**
+ * Suggest a category by trying multiple texts (original + translated).
+ * Use this wherever a translated_description may be available.
+ */
+export function suggestCategoryIdFromTexts(
+  texts: (string | null | undefined)[],
+  rules: CategoryRule[]
+): string | null {
+  return matchCategoryFromTexts(texts, rules)?.category_id ?? null
 }
 
 export function suggestOverallCategory(

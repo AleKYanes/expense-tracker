@@ -1,3 +1,6 @@
+// Force Node.js runtime — AWS SDK and pdf-parse both require it.
+export const runtime = 'nodejs'
+
 import {
   TextractClient,
   AnalyzeExpenseCommand,
@@ -8,30 +11,35 @@ import {
 import type { NextRequest } from 'next/server'
 import type { ParsedField, ParsedLineItem, ParsedResult } from '@/app/lib/types'
 import { applyCzechFallback } from '@/app/lib/czechParser'
+import { extractPdfText } from '@/app/lib/pdfText'
+import { translateTextsToEnglish } from '@/app/lib/deepl'
+import { parseMoney } from '@/app/lib/parseMoney'
 
 const ALLOWED_TYPES = ['application/pdf', 'image/png', 'image/jpeg']
 const MAX_BYTES = 10 * 1024 * 1024
 
 const AWS_ERROR_FRIENDLY: Record<string, string> = {
   AccessDeniedException:
-    'AWS permission denied. Make sure your IAM user has the textract:AnalyzeExpense permission.',
+    'AWS permission denied. Make sure your IAM user has textract:AnalyzeExpense permission.',
   BadDocumentException:
     'The document could not be read by Textract. Check that the file is a valid, non-corrupted PDF or image.',
   DocumentTooLargeException:
     'The file is too large for Textract to process inline. Try a smaller file.',
   InvalidParameterException:
-    'Textract rejected the file. It may be corrupted, password-protected, or an unsupported variant of PDF/image.',
+    'Textract rejected the file. It may be corrupted, password-protected, or an unsupported PDF variant.',
   UnsupportedDocumentException:
-    'This PDF was rejected by Textract. It may be multi-page or generated in a way Textract cannot read directly.',
+    'This PDF was rejected by Textract. It may be multi-page or generated in a way Textract cannot read.',
   ProvisionedThroughputExceededException:
-    'AWS Textract is throttling requests right now. Wait a few seconds and try again.',
+    'AWS Textract is throttling requests. Wait a few seconds and try again.',
   ThrottlingException:
-    'AWS Textract is throttling requests right now. Wait a few seconds and try again.',
+    'AWS Textract is throttling requests. Wait a few seconds and try again.',
   InternalServerError:
     'AWS Textract returned an internal error. This is usually transient — please try again.',
   ServiceUnavailableException:
     'AWS Textract is temporarily unavailable. Please try again shortly.',
 }
+
+const UNSUPPORTED_RELIABLE = 'UNSUPPORTED_DOCUMENT_RELIABLE_PARSE_FAILED'
 
 type AwsSdkError = Error & {
   name: string
@@ -51,28 +59,119 @@ function buildClient() {
   return new TextractClient({ region, credentials: { accessKeyId, secretAccessKey } })
 }
 
-async function extractPdfText(bytes: Uint8Array): Promise<string | null> {
-  try {
-    const { PDFParse } = await import('pdf-parse')
-    const parser = new PDFParse({ data: bytes })
-    const result = await parser.getText()
-    return result.text && result.text.trim().length > 20 ? result.text : null
-  } catch (err) {
-    console.warn('[pdf-parse] extraction failed:', err instanceof Error ? err.message : String(err))
-    return null
+// ── Fallback validation ───────────────────────────────────────────────────────
+
+/**
+ * Checks that a fallback-parsed result is reliable enough to send to ReviewForm.
+ * Returns a human-readable reason if it fails, null if it passes.
+ *
+ * Requirements:
+ * - Total must be a positive number.
+ * - At least 3 line items must have both a non-empty description and a parseable amount.
+ */
+function validateFallbackParsed(parsed: ParsedResult | null): string | null {
+  if (!parsed) return 'Parser returned no data.'
+
+  const total = parseMoney(parsed.total?.value ?? null)
+  if (!total || total <= 0) {
+    return 'Could not extract a valid total amount from this document.'
+  }
+
+  const validItems = parsed.lineItems.filter((li) => {
+    if (!li.description?.trim()) return false
+    const amt = parseMoney(li.amount ?? null)
+    return amt !== null
+  })
+
+  if (validItems.length < 3) {
+    return (
+      `Only ${validItems.length} valid line item(s) could be extracted ` +
+      `(minimum 3 required). The document layout may not be supported yet.`
+    )
+  }
+
+  return null
+}
+
+// ── Translation ───────────────────────────────────────────────────────────────
+
+async function attachTranslations(parsed: ParsedResult | null): Promise<ParsedResult | null> {
+  if (!parsed || parsed.lineItems.length === 0) return parsed
+
+  const descriptions = parsed.lineItems
+    .map((li) => li.description)
+    .filter((d): d is string => Boolean(d))
+
+  const translations = await translateTextsToEnglish(descriptions)
+  if (translations.size === 0) return parsed
+
+  return {
+    ...parsed,
+    lineItems: parsed.lineItems.map((li) => {
+      const t = li.description ? translations.get(li.description) : undefined
+      return t ? { ...li, translated_description: t } : li
+    }),
   }
 }
 
-async function buildFallbackResponse(pdfText: string, fileName: string, warningPrefix: string) {
-  const { parseRohlíkText } = await import('@/app/lib/rohlíkParser')
+// ── PDF fallback ──────────────────────────────────────────────────────────────
+
+type FallbackResult =
+  | { ok: true; raw: unknown; parsed: ParsedResult | null }
+  | { ok: false; reason: string }
+  | null  // not a recognised format or text extraction failed — caller tries Textract
+
+async function tryPdfFallback(bytes: Uint8Array, fileName: string): Promise<FallbackResult> {
+  let pdfText: string
+  try {
+    pdfText = await extractPdfText(bytes)
+  } catch (pdfErr) {
+    console.warn('[pdf-fallback] text extraction threw:', pdfErr instanceof Error ? pdfErr.message : String(pdfErr))
+    return null
+  }
+
+  if (!pdfText || pdfText.trim().length < 20) {
+    console.log('[pdf-fallback] extracted text too short, skipping')
+    return null
+  }
+
+  const { isRohlíkDeliveryNote, parseRohlíkText } = await import('@/app/lib/rohlíkParser')
+
+  if (!isRohlíkDeliveryNote(pdfText)) {
+    console.log('[pdf-fallback] not a recognised delivery note format')
+    return null
+  }
+
+  console.log('[pdf-fallback] Rohlík delivery note detected — parsing:', fileName)
   const parsed = parseRohlíkText(pdfText, fileName)
-  return Response.json({
+
+  const validationError = validateFallbackParsed(parsed)
+  if (validationError) {
+    console.warn('[pdf-fallback] validation failed:', validationError)
+    return { ok: false, reason: validationError }
+  }
+
+  // Validation passed — translate and return.
+  const parsedWithTranslations = await attachTranslations(parsed)
+  return {
+    ok: true,
     raw: { _source: 'pdf-text-fallback', textSample: pdfText.slice(0, 1500) },
-    parsed,
-    parseWarning: warningPrefix +
-      ' The fallback text parser extracted data from the PDF. Please verify all fields carefully before saving.',
-  })
+    parsed: parsedWithTranslations,
+  }
 }
+
+function unsupportedResponse(reason: string) {
+  return Response.json(
+    {
+      error: "We couldn't read this document reliably yet.",
+      details: reason,
+      code: UNSUPPORTED_RELIABLE,
+    },
+    { status: 422 }
+  )
+}
+
+// ── Route ─────────────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   const client = buildClient()
@@ -110,10 +209,7 @@ export async function POST(request: NextRequest) {
   }
   if (file.size > MAX_BYTES) {
     const mb = (file.size / (1024 * 1024)).toFixed(1)
-    return Response.json(
-      { error: `File is too large (${mb} MB). Maximum is 10 MB.`, code: 'FileTooLarge' },
-      { status: 400 }
-    )
+    return Response.json({ error: `File is too large (${mb} MB). Maximum is 10 MB.`, code: 'FileTooLarge' }, { status: 400 })
   }
 
   const logCtx = { fileName: file.name, fileType: file.type, fileSizeMB: (file.size / (1024 * 1024)).toFixed(2) }
@@ -125,27 +221,31 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Could not read the file.', code: 'ReadError' }, { status: 400 })
   }
 
-  // ── PDF pre-check: try text extraction before calling Textract ────────────
-  // For PDFs that are text-based (like Rohlík delivery notes), PDF text parsing
-  // is more reliable than Textract. We try it first if we detect a supported format.
+  // ── PDF pre-check ─────────────────────────────────────────────────────────
+  // For text-based PDFs we recognise (e.g. Rohlík delivery notes), try the
+  // text parser first. If it succeeds validation we skip Textract entirely.
+  // If it fails validation we return a clear "unsupported" error immediately
+  // rather than forwarding to Textract (which would also fail).
   if (file.type === 'application/pdf') {
-    console.log('[route] PDF upload — attempting text pre-check:', file.name)
-    const pdfText = await extractPdfText(bytes)
+    console.log('[route] PDF — trying text pre-check:', file.name)
+    const fallback = await tryPdfFallback(bytes, file.name)
 
-    if (pdfText) {
-      const { isRohlíkDeliveryNote } = await import('@/app/lib/rohlíkParser')
-      if (isRohlíkDeliveryNote(pdfText)) {
-        console.log('[route] Rohlík delivery note detected — using PDF text parser directly:', file.name)
-        return await buildFallbackResponse(
-          pdfText,
-          file.name,
-          'Parsed using PDF text fallback (Rohlík delivery note detected).'
-        )
+    if (fallback !== null) {
+      if (!fallback.ok) {
+        // Recognised format but parsing quality was too low to trust.
+        return unsupportedResponse(fallback.reason)
       }
-      console.log('[route] PDF text extracted but not a known delivery note format — proceeding with Textract')
-    } else {
-      console.log('[route] PDF has no extractable text — proceeding with Textract')
+      return Response.json({
+        raw: fallback.raw,
+        parsed: fallback.parsed,
+        parseWarning:
+          'Parsed using PDF text fallback (Rohlík delivery note detected). ' +
+          'Please verify all fields carefully before saving.',
+      })
     }
+
+    // null → not a recognised format, proceed with Textract.
+    console.log('[route] not a recognised delivery note — proceeding with Textract:', file.name)
   }
 
   // ── Call AWS Textract ─────────────────────────────────────────────────────
@@ -161,29 +261,28 @@ export async function POST(request: NextRequest) {
         requestId: err.$metadata?.requestId,
       })
 
-      // ── Fallback: try PDF text when Textract rejects the document ────────
+      // Textract rejected the document — try PDF text fallback as a last resort.
       if (err.name === 'UnsupportedDocumentException' && file.type === 'application/pdf') {
-        console.log('[Textract] UnsupportedDocumentException — attempting PDF text fallback:', file.name)
-        const pdfText = await extractPdfText(bytes)
+        console.log('[Textract] UnsupportedDocumentException — trying PDF text fallback:', file.name)
+        const fallback = await tryPdfFallback(bytes, file.name)
 
-        if (pdfText) {
-          console.log('[Textract] fallback text extracted, length:', pdfText.length)
-          return await buildFallbackResponse(
-            pdfText,
-            file.name,
-            'Parsed using PDF text fallback because Textract could not read this PDF.'
-          )
+        if (fallback !== null) {
+          if (!fallback.ok) {
+            return unsupportedResponse(fallback.reason)
+          }
+          return Response.json({
+            raw: fallback.raw,
+            parsed: fallback.parsed,
+            parseWarning:
+              'Parsed using PDF text fallback because Textract could not read this PDF. ' +
+              'Please verify all fields carefully before saving.',
+          })
         }
 
-        return Response.json(
-          {
-            error:
-              'This PDF was rejected by Textract and has no embedded text — it may be a scanned image. ' +
-              'Try converting each page to PNG/JPEG and uploading those instead.',
-            details: err.message,
-            code: err.name,
-          },
-          { status: 502 }
+        // Fallback also produced nothing useful — hard block.
+        return unsupportedResponse(
+          'This PDF was rejected by Textract and could not be parsed by the text fallback. ' +
+          'Try uploading a standard single-page invoice PDF, or convert pages to PNG/JPEG.'
         )
       }
 
@@ -203,7 +302,7 @@ export async function POST(request: NextRequest) {
   let parsed: ParsedResult | null = null
   let parseWarning: string | undefined
   try {
-    parsed = parseExpenseResponse(raw)
+    parsed = await attachTranslations(parseExpenseResponse(raw))
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown parse error'
     console.error('[Textract] response parsing failed', { ...logCtx, errorMessage: message })
@@ -215,7 +314,7 @@ export async function POST(request: NextRequest) {
   return Response.json({ raw, parsed, ...(parseWarning ? { parseWarning } : {}) })
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Textract response parser ──────────────────────────────────────────────────
 
 function toField(f: ExpenseField): ParsedField {
   return {

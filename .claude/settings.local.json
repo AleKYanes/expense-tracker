@@ -6,7 +6,16 @@
       "Bash(dir /s /b \"C:\\\\Users\\\\aleja\\\\projects\\\\expense-tracker\\\\node_modules\\\\next\\\\dist\\\\docs\\\\*middleware*\")",
       "Bash(npm install *)",
       "Bash(npm run *)",
-      "Bash(del \"C:\\\\Users\\\\aleja\\\\projects\\\\expense-tracker\\\\middleware.ts\")"
+      "Bash(del \"C:\\\\Users\\\\aleja\\\\projects\\\\expense-tracker\\\\middleware.ts\")",
+      "Bash(npm uninstall *)",
+      "Bash(node -e \"const t = require\\('@aws-sdk/client-textract'\\); console.log\\(Object.keys\\(t\\).filter\\(k => k.includes\\('Expense'\\) || k.includes\\('Job'\\)\\).sort\\(\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(node -e \"const s3 = require\\('@aws-sdk/client-s3'\\); console.log\\(Object.keys\\(s3\\).filter\\(k => k.includes\\('Put'\\) || k.includes\\('Delete'\\) || k.includes\\('Command'\\)\\).sort\\(\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(npx tsx *)",
+      "Bash(npm test *)",
+      "Bash(node -e ' *)",
+      "Bash(npx supabase *)",
+      "PowerShell(npm run *)",
+      "PowerShell(npm test *)"
     ]
   }
 }

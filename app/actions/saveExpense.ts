@@ -5,17 +5,30 @@ import { normalize } from '@/app/lib/categoryMatcher'
 import type { SaveExpenseInput } from '@/app/lib/types'
 
 function serverMatch(
-  description: string,
-  rules: Array<{ category_id: string; match_text: string }>
+  descriptions: (string | null | undefined)[],
+  rules: Array<{ category_id: string; match_text: string; priority?: number }>
 ): string | null {
-  if (!description || !rules.length) return null
-  const n = normalize(description)
-  for (const rule of rules) {
-    if (rule.match_text && n.includes(normalize(rule.match_text))) {
-      return rule.category_id
+  let bestCatId: string | null = null
+  let bestPriority = -1
+  let bestLen = 0
+
+  for (const text of descriptions) {
+    if (!text) continue
+    const n = normalize(text)
+    for (const rule of rules) {
+      if (!rule.match_text) continue
+      const ruleNorm = normalize(rule.match_text)
+      if (!n.includes(ruleNorm)) continue
+      const priority = rule.priority ?? 100
+      const len = ruleNorm.length
+      if (priority > bestPriority || (priority === bestPriority && len > bestLen)) {
+        bestCatId = rule.category_id
+        bestPriority = priority
+        bestLen = len
+      }
     }
   }
-  return null
+  return bestCatId
 }
 
 function blankToNull(v: string | null | undefined): string | null {
@@ -81,7 +94,10 @@ export async function saveExpense(
         (item.unit_price != null ? (item.quantity ?? 1) * item.unit_price : null)
 
       const clientCat = blankToNull(item.category_id)
-      const matchedCat = clientCat ?? serverMatch(item.description, serverRules)
+      const matchedCat = clientCat ?? serverMatch(
+        [item.description, item.translated_description],
+        serverRules
+      )
       const finalCategoryId = matchedCat ?? otherCategoryId
 
       return {

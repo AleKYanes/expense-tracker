@@ -24,6 +24,7 @@ export type ParsedLineItem = {
   amount: string | null
   tax_amount: string | null
   confidence: number | null
+  translated_description?: string | null
 }
 
 export type ParsedResult = {
@@ -48,6 +49,7 @@ export type ItemDraft = {
   amount: string
   tax_amount: string
   category_id: string
+  translated_description?: string
 }
 
 export type SaveExpenseInput = {
@@ -63,6 +65,7 @@ export type SaveExpenseInput = {
   confidence_score: number | null
   items: Array<{
     description: string
+    translated_description?: string | null
     quantity: number | null
     unit_price: number | null
     amount: number | null

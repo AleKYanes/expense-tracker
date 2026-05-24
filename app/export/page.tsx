@@ -44,6 +44,24 @@ export default function ExportPage() {
           <div>
             <div className="flex items-start justify-between gap-4">
               <div>
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Excel workbook (.xlsx)</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                  Two sheets: all line items + monthly pivot by category. All time.
+                </p>
+              </div>
+              <a
+                href="/api/export/xlsx"
+                download
+                className="shrink-0 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition-colors"
+              >
+                Download Excel
+              </a>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-50 dark:border-gray-800 pt-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
                 <p className="text-sm font-medium text-gray-800 dark:text-gray-200">CSV for Google Sheets</p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                   UTF-8, one row per line item. Open directly in Google Sheets or Excel.
