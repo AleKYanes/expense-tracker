@@ -61,12 +61,12 @@ function extractOrderNumber(text: string): string | null {
  */
 function extractTotal(text: string): string | null {
   const patterns = [
-    /Total\s+price\s+after\s+discount\s+(?:CZK|Kč)\s*([\d\s.,]+)/i,
-    /Total\s+price\s+to\s+pay\s+(?:CZK|Kč)\s*([\d\s.,]+)/i,
-    /Total\s+price\s+(?:CZK|Kč)\s*([\d\s.,]+)/i,
+    /Total\s+price\s+after\s+discount\s*(?:CZK|Kč)\s*([\d\s.,]+)/i,
+    /Total\s+price\s+to\s+pay\s*(?:CZK|Kč)\s*([\d\s.,]+)/i,
+    /Total\s+price\s*(?:CZK|Kč)\s*([\d\s.,]+)/i,
     /celkov[aá]\s+(?:cena|castka|suma)[^\n]*?(?:CZK|Kč)\s*([\d\s.,]+)/i,
     /k\s+uhrad[eě][^\n]*?(?:CZK|Kč)\s*([\d\s.,]+)/i,
-    /celkem\s+(?:CZK|Kč)\s*([\d\s.,]+)/i,
+    /celkem\s*(?:CZK|Kč)\s*([\d\s.,]+)/i,
   ]
   for (const re of patterns) {
     const m = re.exec(text)
@@ -86,26 +86,38 @@ function extractTotal(text: string): string | null {
 //   x  lowercase ASCII (some OCR/font mappings)
 //   X  uppercase ASCII (most common Textract output for subsequent rows)
 // The i flag alone makes x≡X, but we list X explicitly to be unambiguous.
+//
+// Whitespace before CZK is \s* (zero-or-more), not \s+: the source PDF glues
+// the price-per-kg and line total together with no separator, so pdf-parse
+// emits "…/kgCZK106.65". Requiring a space here dropped every weight item.
 const WEIGHT_ROW_RE =
-  /^(\d+[.,]\d+)\s*kg\s*[×xX]?\s*CZK(\d+[.,]\d+)\/kg\s+CZK(\d+[.,]\d+)/i
+  /^(\d+[.,]\d+)\s*kg\s*[×xX]?\s*CZK(\d+[.,]\d+)\/kg\s*CZK(\d+[.,]\d+)/i
 
 // Priority 2 – standard qty×price line
-// \s* before [×xX] handles "6 × CZK..." (space before multiplier from Textract)
-const STANDARD_PRICE_RE = /^(\d+)\s*[×xX]\s*CZK(\d+[.,]\d+)\s+CZK(\d+[.,]\d+)/i
+// \s* before [×xX] handles "6 × CZK..." (space before multiplier from Textract).
+// \s* between the two CZK amounts: the PDF renders "CZK119.90CZK239.80" with no
+// separator (unit price directly followed by line total). Requiring a space
+// here caused the price line to be misread as a product name, dropping the item.
+const STANDARD_PRICE_RE = /^(\d+)\s*[×xX]\s*CZK(\d+[.,]\d+)\s*CZK(\d+[.,]\d+)/i
 
 // Priority 3 – payment section fee lines
-const DELIVERY_RE = /^delivery\s+CZK(-?[\d.,]+)/i
-const COURIER_TIP_RE = /^courier tip\s+CZK(-?[\d.,]+)/i
-const DISCOUNT_CREDITS_RE = /^discount in credits\s+-?CZK([\d.,]+)/i
-const TOTAL_AFTER_DISCOUNT_RE = /^total price after discount\s+CZK([\d.,]+)/i
-const TOTAL_TO_PAY_RE = /^total price to pay\s+CZK([\d.,]+)/i
+// \s* before CZK: the PDF glues the label to the amount ("DeliveryCZK0.00").
+const DELIVERY_RE = /^delivery\s*CZK(-?[\d.,]+)/i
+const COURIER_TIP_RE = /^courier tip\s*CZK(-?[\d.,]+)/i
+const DISCOUNT_CREDITS_RE = /^discount in credits\s*-?CZK([\d.,]+)/i
+const TOTAL_AFTER_DISCOUNT_RE = /^total price after discount\s*CZK([\d.,]+)/i
+const TOTAL_TO_PAY_RE = /^total price to pay\s*CZK([\d.,]+)/i
 
-// Document header lines to skip in any state
+// Document header lines to skip in any state.
+// The asterisk-rule and "Order #" lines bracket the header block; skipping them
+// keeps header junk from being picked up as (and prepended to) the first item.
 const SKIP_ALWAYS_RES = [
   /^DELIVERY\s+NOTE/i,
   /^Delivered\s+items/i,
   /^Page\s+\d/i,
   /^VELK[AÁ]\s+PECKA/i,
+  /^[*\s]+$/,
+  /^Order\s*[#№]/i,
 ]
 
 // ── Data types ────────────────────────────────────────────────────────────────
@@ -187,8 +199,19 @@ function makeFeeItem(description: string, amount: number): ParsedLineItem {
 
 // ── State machine ─────────────────────────────────────────────────────────────
 
+// pdf-parse can wrap a "qty× CZKunit CZKtotal" row so the line total falls to
+// the next line as a bare "CZKtotal" (seen on qty=1 rows where unit == total,
+// e.g. "1× CZK31.41" / "CZK31.41"). Rejoin the halves before the state machine
+// runs, otherwise the standard-price regex never matches and the item is dropped.
+function repairSplitPriceLines(text: string): string {
+  return text.replace(
+    /^(\s*\d+\s*[×xX]\s*CZK\d+[.,]\d+)\s*\n(\s*CZK\d+[.,]\d+)/gim,
+    (_m, head, tail) => head.trimEnd() + tail.trim()
+  )
+}
+
 function parseItems(text: string, debug: boolean): ParseItemsResult {
-  const lines = text
+  const lines = repairSplitPriceLines(text)
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean)
@@ -396,11 +419,22 @@ function parseItems(text: string, debug: boolean): ParseItemsResult {
     }
 
     // ── Priority 5: product name ───────────────────────────────────────────
-    // Rule 3: finalize the previous product, start a new one
+    // Rule 3: finalize the previous product, start a new one.
+    //
+    // Exception — wrapped product names: pdf-parse breaks long names across
+    // several lines (e.g. "Air Wick … winter fruit" / "250ml"). If the open
+    // product has no pricing yet, this line is a continuation of its name, not
+    // a new product — append it. A product that already has weight rows is
+    // complete, so a non-price line there starts a new product.
 
-    classify('product_name')
-    flush() // Rule 3: finalize open block before starting new one
-    currentProduct = { description: line, weightRows: [], standardRow: null }
+    if (currentProduct && currentProduct.weightRows.length === 0 && !currentProduct.standardRow) {
+      classify('product_name_continuation')
+      currentProduct.description = `${currentProduct.description} ${line}`.trim()
+    } else {
+      classify('product_name')
+      flush() // Rule 3: finalize open block before starting new one
+      currentProduct = { description: line, weightRows: [], standardRow: null }
+    }
   }
 
   flush() // Rule 5: finalize whatever is open at end of input
@@ -495,7 +529,7 @@ export function parseRohlikLines(lines: string[]): ParsedLineItem[] {
       /^bank\s+connection/i.test(line) ||
       /^bio\s+cert/i.test(line) ||
       /^spisov[aá]/i.test(line) ||
-      /^delivery\s+CZK/i.test(line) ||
+      /^delivery\s*CZK/i.test(line) ||
       /^courier tip/i.test(line) ||
       /^discount in credits/i.test(line) ||
       /^total price/i.test(line)
