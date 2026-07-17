@@ -285,7 +285,7 @@ function UnsupportedDocumentError({ details }: { details?: string }) {
     <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-xl px-5 py-4 space-y-3">
       <div>
         <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-          We couldn't read this document reliably yet.
+          We couldn&apos;t read this document reliably yet.
         </p>
         <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 leading-relaxed">
           This PDF format is not fully supported yet. To avoid saving incorrect expenses, please use one of the alternatives below.

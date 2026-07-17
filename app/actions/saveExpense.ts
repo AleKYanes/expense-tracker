@@ -2,7 +2,7 @@
 
 import { getServerClient } from '@/app/lib/supabase/server'
 import { normalize } from '@/app/lib/categoryMatcher'
-import type { SaveExpenseInput } from '@/app/lib/types'
+import type { DuplicateExpense, SaveExpenseInput } from '@/app/lib/types'
 
 function serverMatch(
   descriptions: (string | null | undefined)[],
@@ -38,7 +38,7 @@ function blankToNull(v: string | null | undefined): string | null {
 
 export async function saveExpense(
   input: SaveExpenseInput
-): Promise<{ id: string } | { error: string }> {
+): Promise<{ id: string } | { error: string } | { duplicate: DuplicateExpense }> {
   let supabase
   try {
     supabase = await getServerClient()
@@ -48,6 +48,23 @@ export async function saveExpense(
 
   // Get authenticated user — required for RLS.
   const { data: { user } } = await supabase.auth.getUser()
+
+  // Warn about likely duplicates (same vendor, date, and total) unless the
+  // user already confirmed saving anyway.
+  if (!input.allowDuplicate && input.invoice_date) {
+    const vendorPattern = input.vendor_name.trim().replace(/[\\%_]/g, '\\$&')
+    const { data: dup } = await supabase
+      .from('expenses')
+      .select('id, vendor_name, invoice_date, total_amount, currency')
+      .eq('invoice_date', input.invoice_date)
+      .eq('total_amount', input.total_amount)
+      .ilike('vendor_name', vendorPattern)
+      .limit(1)
+      .maybeSingle()
+    if (dup) {
+      return { duplicate: dup as DuplicateExpense }
+    }
+  }
 
   const { data: expense, error: expenseError } = await supabase
     .from('expenses')

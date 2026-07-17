@@ -6,7 +6,7 @@ import { saveExpense } from '@/app/actions/saveExpense'
 import { suggestCategoryIdFromTexts, suggestOverallCategory, matchCategoryFromTexts } from '@/app/lib/categoryMatcher'
 import { parseDateString } from '@/app/lib/czechParser'
 import { parseMoney } from '@/app/lib/parseMoney'
-import type { Category, CategoryRule, ItemDraft, ParsedResult } from '@/app/lib/types'
+import type { Category, CategoryRule, DuplicateExpense, ItemDraft, ParsedResult } from '@/app/lib/types'
 
 interface ScanData {
   raw: unknown
@@ -74,6 +74,7 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [duplicateOf, setDuplicateOf] = useState<DuplicateExpense | null>(null)
   const [showRaw, setShowRaw] = useState(false)
 
   const otherCategoryId = categories.find((c) => c.slug === 'other')?.id
@@ -138,6 +139,14 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
       return
     }
 
+    // A visible duplicate warning means the user is confirming "save anyway" —
+    // but only while the fields still match it; edits trigger a fresh check.
+    const allowDuplicate =
+      duplicateOf != null &&
+      duplicateOf.invoice_date === invoiceDate &&
+      duplicateOf.total_amount === total &&
+      duplicateOf.vendor_name.trim().toLowerCase() === vendor.trim().toLowerCase()
+
     startTransition(async () => {
       const mappedItems = items
         .filter((item) => item.description.trim())
@@ -182,10 +191,13 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
         source_file_name: fileName,
         raw_extraction_json: raw,
         confidence_score: avgConfidence(parsed),
+        allowDuplicate,
         items: mappedItems,
       })
 
-      if ('error' in result) {
+      if ('duplicate' in result) {
+        setDuplicateOf(result.duplicate)
+      } else if ('error' in result) {
         setSaveError(result.error)
       } else {
         router.push(`/expenses/${result.id}`)
@@ -437,6 +449,26 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
           )}
         </div>
 
+        {duplicateOf && (
+          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm rounded-xl px-4 py-3 mb-4 space-y-1">
+            <p className="font-semibold">This looks like a duplicate.</p>
+            <p className="text-xs leading-relaxed">
+              You already saved an expense from <strong>{duplicateOf.vendor_name}</strong> on{' '}
+              {duplicateOf.invoice_date ?? 'the same date'} for{' '}
+              {duplicateOf.total_amount.toLocaleString('cs-CZ')} {duplicateOf.currency}.{' '}
+              <a
+                href={`/expenses/${duplicateOf.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="underline font-medium"
+              >
+                View it
+              </a>
+              . Press &quot;Save anyway&quot; if this is a different expense.
+            </p>
+          </div>
+        )}
+
         {saveError && (
           <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm rounded-xl px-4 py-3 mb-4">
             {saveError}
@@ -455,7 +487,7 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
             disabled={!canSave || isPending}
             className="flex-1 py-3 rounded-xl bg-blue-600 text-white text-sm font-medium transition-colors hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {isPending ? 'Saving…' : 'Save expense'}
+            {isPending ? 'Saving…' : duplicateOf ? 'Save anyway' : 'Save expense'}
           </button>
         </div>
 

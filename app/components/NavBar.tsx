@@ -12,7 +12,7 @@ const NAV_LINKS = [
   { href: '/', label: '+ New', exact: true },
 ]
 
-export default function NavBar() {
+export default function NavBar({ version }: { version?: string }) {
   const pathname = usePathname()
   const router = useRouter()
   const { theme, toggle } = useTheme()
@@ -48,6 +48,11 @@ export default function NavBar() {
           </Link>
         ))}
         <div className="flex-1" />
+        {version && (
+          <span className="shrink-0 px-1 text-[10px] text-gray-300 dark:text-gray-600 whitespace-nowrap select-none">
+            v{version}
+          </span>
+        )}
         <button
           onClick={toggle}
           aria-label="Toggle theme"

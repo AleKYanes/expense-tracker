@@ -64,7 +64,7 @@ const isNote = isRohlíkDeliveryNote(FIXTURE)
 console.log('detected:', isNote)
 assert(isNote, 'Should detect as Rohlík delivery note')
 
-const result = parseRohlíkText(FIXTURE, 'test.pdf')
+const result = parseRohlíkText(FIXTURE)
 
 console.log('\n=== Summary fields ===')
 console.log('vendor:', result.vendor?.value)

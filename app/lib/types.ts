@@ -52,11 +52,21 @@ export type ItemDraft = {
   translated_description?: string
 }
 
+export type DuplicateExpense = {
+  id: string
+  vendor_name: string
+  invoice_date: string | null
+  total_amount: number
+  currency: string
+}
+
 export type SaveExpenseInput = {
   vendor_name: string
   invoice_number: string
   invoice_date: string
   total_amount: number
+  /** Skip the duplicate check (user confirmed "save anyway"). */
+  allowDuplicate?: boolean
   tax_amount: number | null
   currency: string
   category_id: string | null

@@ -154,7 +154,7 @@ function fmtQty(n: number): string {
   return n.toFixed(3).replace(/\.?0+$/, '')
 }
 
-function finalizeProduct(product: CurrentProduct, debug: boolean): ParsedLineItem | null {
+function finalizeProduct(product: CurrentProduct): ParsedLineItem | null {
   const { description, weightRows, standardRow } = product
   if (!description) return null
 
@@ -234,7 +234,7 @@ function parseItems(text: string, debug: boolean): ParseItemsResult {
 
   function flush() {
     if (!currentProduct) return
-    const item = finalizeProduct(currentProduct, debug)
+    const item = finalizeProduct(currentProduct)
     if (item) {
       if (debug) {
         console.log(
@@ -650,7 +650,7 @@ export function parseRohlikLines(lines: string[]): ParsedLineItem[] {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export function parseRohlíkText(text: string, _fileName: string): ParsedResult {
+export function parseRohlíkText(text: string): ParsedResult {
   const debug = process.env.NODE_ENV === 'development'
   if (debug) {
     console.log('[rohlikParser] starting parse, text length:', text.length)

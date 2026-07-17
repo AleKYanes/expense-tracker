@@ -143,7 +143,7 @@ async function tryPdfFallback(bytes: Uint8Array, fileName: string): Promise<Fall
   }
 
   console.log('[pdf-fallback] Rohlík delivery note detected — parsing:', fileName)
-  const parsed = parseRohlíkText(pdfText, fileName)
+  const parsed = parseRohlíkText(pdfText)
 
   const validationError = validateFallbackParsed(parsed)
   if (validationError) {

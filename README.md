@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Expense Tracker
+
+Upload invoices and receipts (PDF/images), extract expense data automatically with AWS Textract — with a dedicated parser for Rohlík delivery notes — categorize line items, and review your spending on a dashboard. Built with Next.js, Supabase, and Tailwind CSS.
+
+## Features
+
+- **Invoice scanning** — upload a PDF or photo; AWS Textract extracts vendor, date, totals, and line items. Czech receipts are supported (incl. DeepL translation of item names).
+- **Rohlík parser** — a text-based fallback parser for Rohlík delivery-note PDFs that Textract struggles with.
+- **Automatic categorization** — line items are matched to categories with priority rules.
+- **Dashboard** — monthly total, invoice count, top category highlight, spending by category, and top vendors.
+- **Export** — download your expenses as CSV, JSON, or XLSX.
 
 ## Getting Started
 
-First, run the development server:
+1. Install dependencies:
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+   ```bash
+   npm install
+   ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Create `.env.local` with your Supabase and AWS credentials (Supabase URL/anon key, AWS region/keys/S3 bucket).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Run the development server:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+   ```bash
+   npm run dev
+   ```
 
-## Learn More
+   Open [http://localhost:3000](http://localhost:3000).
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `npm run dev` — development server
+- `npm run build` — production build
+- `npm test` — run the test suite (vitest)
+- `npm run lint` — lint
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Version history
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **v0.2.5** — Pay-period budget card (13 000 CZK, payday on the 15th or the Friday before a weekend), 6-month spending trend chart, month navigation on the dashboard, click-through from category bars to a filtered expense list, duplicate-invoice warning on save, and correct handling of mixed currencies in dashboard totals.
+- **v0.2.0** — Top-category highlight on the dashboard, app version shown in the navbar, lint cleanup.
+- **v0.1.0** — Initial version: invoice upload + Textract scanning, Rohlík PDF fallback parser, categories, dashboard, exports.

@@ -26,7 +26,7 @@ const FIXTURE = [
 ].join('\n')
 
 describe('parseRohlíkText – fixture', () => {
-  const result = parseRohlíkText(FIXTURE, 'test-fixture.pdf')
+  const result = parseRohlíkText(FIXTURE)
 
   it('parses Chicken breast fillets as a weighted item', () => {
     const item = result.lineItems.find((i) => i.description === 'Chicken breast fillets')
@@ -316,7 +316,7 @@ Company Reg. No.: 03024130, VAT ID: CZ03024130
 Deliver to:15.05.2026 15:00`
 
 describe('parseRohlíkText – golden real receipt (order #1124981236)', () => {
-  const r = parseRohlíkText(GOLDEN_RECEIPT, 'rhl-receipt-2026-05-15-1124981236.pdf')
+  const r = parseRohlíkText(GOLDEN_RECEIPT)
 
   it('extracts the summary fields', () => {
     expect(r.invoiceNumber?.value).toBe('1124981236')
