@@ -86,27 +86,51 @@ export function suggestCategoryIdFromTexts(
   return matchCategoryFromTexts(texts, rules)?.category_id ?? null
 }
 
+export type OverallCategoryItem = {
+  texts: (string | null | undefined)[]
+  amount: number | null
+}
+
+/**
+ * Suggest the overall category for an expense.
+ *
+ * 1. Vendor-name rules win outright (e.g. supermarket vendors → Groceries).
+ * 2. Otherwise line items vote, weighted by amount (by item count when no
+ *    amounts are known) — ten 10 Kč items shouldn't outvote one 1 500 Kč item.
+ * 3. If the winner covers less than `minShare` of the money, the label would
+ *    be misleading for a mixed basket, so return null and let the caller fall
+ *    back (e.g. to Groceries).
+ */
 export function suggestOverallCategory(
   vendorName: string,
-  itemDescriptions: string[],
-  rules: CategoryRule[]
+  items: OverallCategoryItem[],
+  rules: CategoryRule[],
+  minShare = 0.4
 ): string | null {
   const fromVendor = suggestCategoryId(vendorName, rules)
   if (fromVendor) return fromVendor
 
-  const counts: Record<string, number> = {}
-  for (const desc of itemDescriptions) {
-    const id = suggestCategoryId(desc, rules)
-    if (id) counts[id] = (counts[id] ?? 0) + 1
+  const hasAmounts = items.some((i) => i.amount != null && i.amount > 0)
+  const totals = new Map<string, number>()
+  let grandTotal = 0
+  for (const item of items) {
+    const weight = hasAmounts ? Math.max(item.amount ?? 0, 0) : 1
+    if (weight <= 0) continue
+    grandTotal += weight
+    const id = suggestCategoryIdFromTexts(item.texts, rules)
+    if (id) totals.set(id, (totals.get(id) ?? 0) + weight)
   }
+  if (grandTotal <= 0) return null
 
   let best: string | null = null
-  let bestCount = 0
-  for (const [id, count] of Object.entries(counts)) {
-    if (count > bestCount) {
+  let bestTotal = 0
+  for (const [id, total] of totals) {
+    if (total > bestTotal) {
       best = id
-      bestCount = count
+      bestTotal = total
     }
   }
+
+  if (!best || bestTotal / grandTotal < minShare) return null
   return best
 }

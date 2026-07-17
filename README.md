@@ -37,6 +37,7 @@ Upload invoices and receipts (PDF/images), extract expense data automatically wi
 
 ## Version history
 
+- **v0.2.5.5** — Category detail pages (`/categories/<slug>`): the month's products in a category ranked by money spent or purchase frequency (toggle), with quantities and the contributing expenses; dashboard category bars and top-category card link to them. Smarter overall category: vendor rules (run `supabase/grocery_vendor_rules.sql`) label supermarket orders as Groceries, the line-item vote is weighted by amount instead of item count, and mixed baskets with no dominant category fall back to Groceries instead of a misleading winner.
 - **v0.2.5** — Pay-period budget card (13 000 CZK, payday on the 15th or the Friday before a weekend), 6-month spending trend chart, month navigation on the dashboard, click-through from category bars to a filtered expense list, duplicate-invoice warning on save, and correct handling of mixed currencies in dashboard totals.
 - **v0.2.0** — Top-category highlight on the dashboard, app version shown in the navbar, lint cleanup.
 - **v0.1.0** — Initial version: invoice upload + Textract scanning, Rohlík PDF fallback parser, categories, dashboard, exports.

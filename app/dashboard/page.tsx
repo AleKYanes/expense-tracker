@@ -79,6 +79,24 @@ function monthKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+function MaybeLink({
+  href,
+  className,
+  children,
+}: {
+  href: string | null
+  className: string
+  children: React.ReactNode
+}) {
+  return href ? (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  ) : (
+    <div className={className}>{children}</div>
+  )
+}
+
 export default async function Dashboard({
   searchParams,
 }: {
@@ -388,7 +406,13 @@ export default async function Dashboard({
             <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{monthCount}</p>
           </div>
           {topCategory && monthTotal > 0 && (
-            <div className="col-span-2 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-5">
+            <MaybeLink
+              href={
+                topCategory.slug
+                  ? `/categories/${encodeURIComponent(topCategory.slug)}?month=${viewedKey}`
+                  : null
+              }
+              className="col-span-2 block bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
               <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Top category</p>
               <div className="flex items-baseline justify-between gap-3">
                 <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2 min-w-0">
@@ -405,7 +429,7 @@ export default async function Dashboard({
                   </span>
                 </p>
               </div>
-            </div>
+            </MaybeLink>
           )}
         </div>
 
@@ -540,7 +564,7 @@ export default async function Dashboard({
                 return cat.slug ? (
                   <Link
                     key={i}
-                    href={`/expenses?category=${cat.slug}`}
+                    href={`/categories/${encodeURIComponent(cat.slug)}?month=${viewedKey}`}
                     className="block rounded-lg -mx-2 px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                   >
                     {row}

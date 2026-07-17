@@ -78,6 +78,7 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
   const [showRaw, setShowRaw] = useState(false)
 
   const otherCategoryId = categories.find((c) => c.slug === 'other')?.id
+  const groceriesCategoryId = categories.find((c) => c.slug === 'groceries')?.id
 
   const [vendor, setVendor] = useState(parsed?.vendor?.value ?? '')
   const [invoiceNumber, setInvoiceNumber] = useState(parsed?.invoiceNumber?.value ?? '')
@@ -85,13 +86,22 @@ export default function ReviewForm({ scanData, categories, rules, fetchError, on
   const [totalAmount, setTotalAmount] = useState(parsed?.total?.value ?? '')
   const [taxAmount, setTaxAmount] = useState(parsed?.tax?.value ?? '')
   const [currency, setCurrency] = useState(parsed?.currency?.value ?? 'CZK')
-  const [categoryId, setCategoryId] = useState(
-    suggestOverallCategory(
+  const [categoryId, setCategoryId] = useState(() => {
+    const lineItems = parsed?.lineItems ?? []
+    const suggested = suggestOverallCategory(
       parsed?.vendor?.value ?? '',
-      (parsed?.lineItems ?? []).map((li) => li.description ?? ''),
+      lineItems.map((li) => ({
+        texts: [li.description, li.translated_description],
+        amount:
+          parseMoney(li.amount ?? '') ??
+          parseMoney(computedAmount(li.quantity ?? '', li.unit_price ?? '')),
+      })),
       rules
-    ) ?? otherCategoryId ?? ''
-  )
+    )
+    // No dominant category on a multi-item receipt = a mixed grocery basket.
+    const mixedFallback = lineItems.length >= 3 ? groceriesCategoryId : undefined
+    return suggested ?? mixedFallback ?? otherCategoryId ?? ''
+  })
   const [items, setItems] = useState<ItemDraft[]>(() =>
     initItems(parsed, rules, otherCategoryId)
   )
