@@ -14,6 +14,25 @@ export type MatchResult = {
   priority: number
 }
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Does a normalized rule keyword match a normalized text?
+ *
+ * Rules of 3 characters or fewer must match a whole word — plain substring
+ * search makes them fire inside unrelated words ('cat' in "Muscat", 'lék' in
+ * "mlékárna"). Longer rules keep substring matching so stems like 'čokolád'
+ * still catch 'čokoládová'.
+ */
+export function ruleMatches(textNorm: string, ruleNorm: string): boolean {
+  if (!ruleNorm) return false
+  if (ruleNorm.length > 3) return textNorm.includes(ruleNorm)
+  const re = new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRegex(ruleNorm)}(?:$|[^\\p{L}\\p{N}])`, 'u')
+  return re.test(textNorm)
+}
+
 /**
  * Returns the best-matching rule for a single text string.
  * Scoring: priority (higher wins), then match_text length on ties.
@@ -27,7 +46,7 @@ export function matchCategory(text: string, rules: CategoryRule[]): MatchResult 
   for (const rule of rules) {
     if (!rule.match_text) continue
     const ruleNorm = normalize(rule.match_text)
-    if (!n.includes(ruleNorm)) continue
+    if (!ruleMatches(n, ruleNorm)) continue
 
     const priority = rule.priority ?? 100
     const len = ruleNorm.length

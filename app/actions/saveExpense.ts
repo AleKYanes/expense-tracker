@@ -1,7 +1,7 @@
 'use server'
 
 import { getServerClient } from '@/app/lib/supabase/server'
-import { normalize } from '@/app/lib/categoryMatcher'
+import { normalize, ruleMatches } from '@/app/lib/categoryMatcher'
 import type { DuplicateExpense, SaveExpenseInput } from '@/app/lib/types'
 
 function serverMatch(
@@ -18,7 +18,7 @@ function serverMatch(
     for (const rule of rules) {
       if (!rule.match_text) continue
       const ruleNorm = normalize(rule.match_text)
-      if (!n.includes(ruleNorm)) continue
+      if (!ruleMatches(n, ruleNorm)) continue
       const priority = rule.priority ?? 100
       const len = ruleNorm.length
       if (priority > bestPriority || (priority === bestPriority && len > bestLen)) {

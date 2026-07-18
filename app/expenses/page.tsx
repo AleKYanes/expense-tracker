@@ -36,9 +36,10 @@ function fmtDate(iso: string | null) {
 export default async function ExpensesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string }>
+  searchParams: Promise<{ category?: string; sort?: string }>
 }) {
-  const { category: categoryParam } = await searchParams
+  const { category: categoryParam, sort: sortParam } = await searchParams
+  const sortBy: 'added' | 'date' = sortParam === 'date' ? 'date' : 'added'
 
   let expenses: ExpenseRow[] = []
   let categories: Category[] = []
@@ -101,13 +102,29 @@ export default async function ExpensesPage({
   const activeCategory = categoryParam
     ? categories.find((c) => c.slug === categoryParam) ?? null
     : null
-  const visibleExpenses = activeCategory
+  const filteredExpenses = activeCategory
     ? expenses.filter(
         (e) =>
           e.category_id === activeCategory.id ||
           itemCatsByExpense.get(e.id)?.has(activeCategory.id)
       )
     : expenses
+
+  // Fetched newest-added first; re-sort by invoice date on demand
+  // (undated expenses sink to the bottom).
+  const visibleExpenses =
+    sortBy === 'date'
+      ? [...filteredExpenses].sort((a, b) =>
+          (b.invoice_date ?? '').localeCompare(a.invoice_date ?? '')
+        )
+      : filteredExpenses
+
+  const sortLink = (sort: 'added' | 'date') => {
+    const params = new URLSearchParams()
+    if (categoryParam) params.set('category', categoryParam)
+    params.set('sort', sort)
+    return `/expenses?${params.toString()}`
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-8">
@@ -128,24 +145,48 @@ export default async function ExpensesPage({
           </div>
         )}
 
-        {activeCategory && (
-          <div className="flex items-center gap-2 mb-4">
-            <span className="inline-flex items-center gap-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-full pl-3 pr-1.5 py-1 text-xs text-gray-600 dark:text-gray-300">
-              <span
-                className="inline-block w-2 h-2 rounded-full"
-                style={{ backgroundColor: activeCategory.color ?? '#94a3b8' }}
-              />
-              {activeCategory.name}
-              <Link
-                href="/expenses"
-                aria-label="Clear category filter"
-                className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-              >
-                ×
-              </Link>
-            </span>
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <div>
+            {activeCategory && (
+              <span className="inline-flex items-center gap-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-full pl-3 pr-1.5 py-1 text-xs text-gray-600 dark:text-gray-300">
+                <span
+                  className="inline-block w-2 h-2 rounded-full"
+                  style={{ backgroundColor: activeCategory.color ?? '#94a3b8' }}
+                />
+                {activeCategory.name}
+                <Link
+                  href={`/expenses?sort=${sortBy}`}
+                  aria-label="Clear category filter"
+                  className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                >
+                  ×
+                </Link>
+              </span>
+            )}
           </div>
-        )}
+          <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs shrink-0">
+            <Link
+              href={sortLink('added')}
+              className={`px-3 py-1.5 transition-colors ${
+                sortBy === 'added'
+                  ? 'bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-medium'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+              }`}
+            >
+              Added
+            </Link>
+            <Link
+              href={sortLink('date')}
+              className={`px-3 py-1.5 border-l border-gray-200 dark:border-gray-700 transition-colors ${
+                sortBy === 'date'
+                  ? 'bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-medium'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+              }`}
+            >
+              Invoice date
+            </Link>
+          </div>
+        </div>
 
         <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
           {visibleExpenses.length === 0 ? (

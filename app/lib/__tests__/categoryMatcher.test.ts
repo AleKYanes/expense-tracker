@@ -1,6 +1,40 @@
 import { describe, it, expect } from 'vitest'
-import { suggestOverallCategory } from '../categoryMatcher'
+import { matchCategory, ruleMatches, suggestOverallCategory } from '../categoryMatcher'
 import type { CategoryRule } from '../types'
+
+describe('ruleMatches (word boundaries for short rules)', () => {
+  it('matches short rules only as whole words', () => {
+    expect(ruleMatches('inaba churu bites cat snack chicken', 'cat')).toBe(true)
+    expect(ruleMatches('muscat wine 0.75l', 'cat')).toBe(false)
+    expect(ruleMatches('delicatessen platter', 'cat')).toBe(false)
+    expect(ruleMatches('cat food 2kg', 'cat')).toBe(true)
+  })
+
+  it("no longer matches 'lek' inside 'mlekarna'", () => {
+    expect(ruleMatches('bohusovicka mlekarna skyr 0,1% 350g', 'lek')).toBe(false)
+    expect(ruleMatches('lek na bolest', 'lek')).toBe(true)
+  })
+
+  it('keeps substring matching for longer rules (stems)', () => {
+    expect(ruleMatches('cokoladova tycinka', 'cokolad')).toBe(true)
+  })
+})
+
+describe('matchCategory with short rules', () => {
+  const shortRules: CategoryRule[] = [
+    { category_id: 'pets', match_text: 'cat', priority: 600 },
+    { category_id: 'protein', match_text: 'chicken', priority: 200 },
+  ]
+
+  it("sends cat products to pets even when protein keywords are present", () => {
+    const m = matchCategory('Inaba Churu Bites Cat Snack chicken, tuna, salmon', shortRules)
+    expect(m?.category_id).toBe('pets')
+  })
+
+  it('does not send Muscat wine to pets', () => {
+    expect(matchCategory('Muscat semi-sweet 0.75l', shortRules)).toBeNull()
+  })
+})
 
 const rules: CategoryRule[] = [
   { category_id: 'groceries', match_text: 'velka pecka', priority: 500 },
