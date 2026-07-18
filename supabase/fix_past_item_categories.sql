@@ -72,13 +72,10 @@ WHERE description ILIKE ANY (ARRAY[
   'Medokomerc Honey%'
 ]);
 
--- Pantry & frozen → Groceries
+-- Frozen pizza → Groceries
 UPDATE expense_items
 SET category_id = (SELECT id FROM categories WHERE slug = 'groceries')
-WHERE description ILIKE ANY (ARRAY[
-  'Buitoni %',
-  'Kitchin Sweet corn%'
-]);
+WHERE description ILIKE 'Buitoni %';
 
 -- Sports drinks → Non-Alcoholic Drinks
 UPDATE expense_items

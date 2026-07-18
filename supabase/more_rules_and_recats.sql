@@ -41,9 +41,14 @@ FROM (VALUES
   ('sweets-snacks', 'nanuk',          'cs', 250),
   ('sweets-snacks', 'popcorn',        'en', 250),
 
-  -- Non-alcoholic drinks (drink ice)
+  -- Non-alcoholic drinks (drink ice; coffee at 350 so 'coffee beans'
+  -- beats the new 'beans' → Carbs rule)
   ('drinks', 'ice cubes',             'en', 250),
   ('drinks', 'ice bar',               'en', 250),
+  ('drinks', 'coffee',                'en', 350),
+  ('drinks', 'káva',                  'cs', 350),
+  ('drinks', 'kava',                  'cs', 350),
+  ('drinks', 'espresso',              'en', 350),
 
   -- Spices / condiments
   ('spices-condiments', 'vanilla paste', 'en', 250),
@@ -54,11 +59,27 @@ FROM (VALUES
   ('spices-condiments', 'sůl',           'cs', 150),
   ('spices-condiments', 'sul',           'cs', 150),
 
-  -- Carbs (sugar by macros; fries)
+  -- Carbs (sugar by macros; fries; corn, beans & legumes by macros)
   ('carbs', 'sugar',                  'en', 250),
   ('carbs', 'cukr',                   'cs', 250),
   ('carbs', 'sweet potato',           'en', 250),
-  ('carbs', 'fries',                  'en', 250)
+  ('carbs', 'fries',                  'en', 250),
+  -- 'corn' at 200 so 'popcorn'/'cornetto' (250) still win
+  ('carbs', 'corn',                   'en', 200),
+  ('carbs', 'sweet corn',             'en', 250),
+  ('carbs', 'kukuřice',               'cs', 250),
+  ('carbs', 'kukurice',               'cs', 250),
+  -- 'beans' at 300 to beat 'tomato sauce'-style condiment matches
+  ('carbs', 'beans',                  'en', 300),
+  ('carbs', 'fazole',                 'cs', 300),
+  ('carbs', 'peas',                   'en', 250),
+  ('carbs', 'hrášek',                 'cs', 250),
+  ('carbs', 'hrasek',                 'cs', 250),
+  ('carbs', 'chickpea',               'en', 250),
+  ('carbs', 'cizrna',                 'cs', 250),
+  ('carbs', 'lentil',                 'en', 250),
+  ('carbs', 'čočka',                  'cs', 250),
+  ('carbs', 'cocka',                  'cs', 250)
 ) AS t(slug, match_text, language, priority)
 JOIN categories c ON c.slug = t.slug
 WHERE NOT EXISTS (
@@ -124,13 +145,14 @@ SET category_id = (SELECT id FROM categories WHERE slug = 'carbs')
 WHERE description ILIKE ANY (ARRAY[
   'Kitchin Sugar%',
   '%Sweet potatoe fries%',
-  '%Sweet potato fries%'
+  '%Sweet potato fries%',
+  'Kitchin Sweet corn%',
+  'Kitchin Baked beans%',
+  'Kitchin White Cannellini Beans%',
+  'Kitchin Red kidney beans%',
+  'Kitchin Peas%'
 ]);
 
 UPDATE expense_items
 SET category_id = (SELECT id FROM categories WHERE slug = 'fruits-veggies')
 WHERE description ILIKE 'Lettuce %';
-
-UPDATE expense_items
-SET category_id = (SELECT id FROM categories WHERE slug = 'groceries')
-WHERE description ILIKE 'Kitchin Peas%';
