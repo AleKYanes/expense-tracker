@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import DeleteButton from './DeleteButton'
+import CategoryEditor from '@/app/components/CategoryEditor'
 
 type Category = { id: string; name: string; color: string | null }
 
@@ -90,8 +91,6 @@ export default async function ExpenseDetail({
     dbError = err instanceof Error ? err.message : 'Failed to load expense.'
   }
 
-  const catById = new Map(categories.map((c) => [c.id, c]))
-
   if (dbError || !expense) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-8">
@@ -106,8 +105,6 @@ export default async function ExpenseDetail({
       </div>
     )
   }
-
-  const expenseCat = expense.category_id ? catById.get(expense.category_id) : null
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 px-4 py-8">
@@ -138,9 +135,16 @@ export default async function ExpenseDetail({
               <Row label="Tax amount" value={fmt(expense.tax_amount, expense.currency)} />
             )}
             <Row label="Currency" value={expense.currency || 'CZK'} />
-            {expenseCat && (
-              <Row label="Category" value={expenseCat.name} />
-            )}
+            <div className="flex justify-between items-center py-2.5">
+              <dt className="text-sm text-gray-500 dark:text-gray-400">Category</dt>
+              <dd className="text-sm text-right">
+                <CategoryEditor
+                  categories={categories}
+                  value={expense.category_id}
+                  scope={{ type: 'expense', expenseId: expense.id }}
+                />
+              </dd>
+            </div>
             {expense.source_file_name && (
               <Row label="Source file" value={expense.source_file_name} />
             )}
@@ -159,42 +163,36 @@ export default async function ExpenseDetail({
               Line items ({items.length})
             </h2>
             <div className="space-y-2">
-              {items.map((item) => {
-                const itemCat = item.category_id ? catById.get(item.category_id) : null
-                return (
-                  <div
-                    key={item.id}
-                    className="bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3"
-                  >
-                    <div className="flex justify-between items-start gap-3">
-                      <p className="text-sm text-gray-800 dark:text-gray-200 flex-1">
-                        {item.description || '—'}
-                      </p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 shrink-0">
-                        {fmt(item.amount, expense.currency)}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                      {item.quantity != null && (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">Qty: {item.quantity}</span>
-                      )}
-                      {item.unit_price != null && (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">
-                          Unit: {fmt(item.unit_price, expense.currency)}
-                        </span>
-                      )}
-                      {itemCat && (
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-full text-white"
-                          style={{ backgroundColor: itemCat.color ?? '#94a3b8' }}
-                        >
-                          {itemCat.name}
-                        </span>
-                      )}
-                    </div>
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3"
+                >
+                  <div className="flex justify-between items-start gap-3">
+                    <p className="text-sm text-gray-800 dark:text-gray-200 flex-1">
+                      {item.description || '—'}
+                    </p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 shrink-0">
+                      {fmt(item.amount, expense.currency)}
+                    </p>
                   </div>
-                )
-              })}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+                    {item.quantity != null && (
+                      <span className="text-xs text-gray-400 dark:text-gray-500">Qty: {item.quantity}</span>
+                    )}
+                    {item.unit_price != null && (
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
+                        Unit: {fmt(item.unit_price, expense.currency)}
+                      </span>
+                    )}
+                    <CategoryEditor
+                      categories={categories}
+                      value={item.category_id}
+                      scope={{ type: 'item', itemId: item.id, description: item.description }}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

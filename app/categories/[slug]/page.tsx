@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import CategoryEditor from '@/app/components/CategoryEditor'
 import { normalize } from '@/app/lib/categoryMatcher'
 import { monthKey, parseMonthParam } from '@/app/lib/month'
 import { toISODate } from '@/app/lib/budget'
@@ -35,6 +36,8 @@ type ProductStat = {
   qty: number
   qtyKnown: boolean
   times: number
+  /** False when the row represents a whole expense with no line items. */
+  fromItems: boolean
 }
 
 function fmt(amount: number, currency: string) {
@@ -175,7 +178,8 @@ export default async function CategoryPage({
     name: string,
     qty: number | null,
     amount: number,
-    expense: Expense
+    expense: Expense,
+    fromItems = true
   ) {
     if (!category || catId !== category.id) return
     contributingExpenses.set(expense.id, expense)
@@ -184,6 +188,7 @@ export default async function CategoryPage({
     if (existing) {
       existing.total += amount
       existing.times++
+      existing.fromItems = existing.fromItems && fromItems
       if (qty != null) {
         existing.qty += qty
         existing.qtyKnown = true
@@ -195,6 +200,7 @@ export default async function CategoryPage({
         qty: qty ?? 0,
         qtyKnown: qty != null,
         times: 1,
+        fromItems,
       })
     }
   }
@@ -208,7 +214,8 @@ export default async function CategoryPage({
         expense.vendor_name || 'Unknown vendor',
         null,
         expense.total_amount ?? 0,
-        expense
+        expense,
+        false
       )
       continue
     }
@@ -375,6 +382,13 @@ export default async function CategoryPage({
                         ×{p.times}
                         {p.qtyKnown && ` · qty ${fmtQty(p.qty)}`}
                       </p>
+                      {p.fromItems && category && (
+                        <CategoryEditor
+                          categories={allCategories}
+                          value={category.id}
+                          scope={{ type: 'description', description: p.name }}
+                        />
+                      )}
                     </div>
                   </div>
                 )
